@@ -7,6 +7,7 @@ Repositório para o tech challenger da FIAP - Fase 1 - Machine Learning Engineer
 * Bruno Brito de Souza - RM374808 - brunobrito.learning@gmail.com
 * Fellipe Resende Bastos - RM373040 - fbastos95@gmail.com
 * German Eduardo Brunner - RM375046 - brunner.brunner@gmail.com
+* Marcelo da Cruz Salvador - RM375166 - macrusal@gmail.com
 
 ## Resumo do projeto
 Rede neural MLP (PyTorch) para previsão de churn em operadora de telecomunicações, comparada com baselines Scikit-Learn, rastreada com MLflow e servida via FastAPI.
