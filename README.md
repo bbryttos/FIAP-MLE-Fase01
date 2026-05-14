@@ -19,7 +19,7 @@ pip install -e ".[dev]"
 
 ## Dados
 
-Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) e salve em `data/raw/telco_churn.csv`.
+Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/telco_churn.csv`.
 
 ## Uso
 
