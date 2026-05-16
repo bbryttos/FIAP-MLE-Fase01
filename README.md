@@ -239,8 +239,6 @@ Documentação de arquitetura: [`docs/model_card.md`](docs/model_card.md)
 
 ## 👥 Equipe
 
-## 👥 Equipe
-
 | Nome | RM                     |e-mail| Papel                                |
 |---|------------------------|---|--------------------------------------|
 | Anna Luiza de Angelis Souza Freitas |RM375350|annaluizafreitas17@hotmail.com| Dados / Machine Learning Engineering                            |
