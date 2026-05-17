@@ -34,7 +34,7 @@ _logger.add(
 )
 
 # Handler para arquivo (rotativo — máximo 10MB, mantém 7 dias)
-log_path = Path("logs") / "churn_prediction.log"
+log_path = Path(__file__).parent.parent.parent / "logs" / "churn_prediction.log"
 log_path.parent.mkdir(exist_ok=True)
 
 _logger.add(

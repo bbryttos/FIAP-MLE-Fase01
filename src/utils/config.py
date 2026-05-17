@@ -13,16 +13,21 @@ Uso:
 """
 
 import random
+from pathlib import Path
 
 import numpy as np
 import torch
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Raiz do projeto — sempre absoluta, independente de onde o código é executado
+# src/utils/config.py → src/utils → src → raiz
+PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -31,9 +36,12 @@ class Settings(BaseSettings):
     # Reprodutibilidade
     seed: int = Field(default=42, description="Seed global para reprodutibilidade")
 
-    # Caminhos
-    model_path: str = Field(default="models/mlp_churn.pt")
-    data_path: str = Field(default="data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+    # Caminhos — sempre relativos à raiz do projeto
+    model_path: Path = Field(default=PROJECT_ROOT / "models" / "mlp_churn.pt")
+    data_path: Path = Field(
+        default=PROJECT_ROOT / "data" / "raw" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
+    )
+    log_path: Path = Field(default=PROJECT_ROOT / "logs" / "churn_prediction.log")
 
     # MLflow
     mlflow_tracking_uri: str = Field(default="http://localhost:5000")
