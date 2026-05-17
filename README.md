@@ -60,8 +60,25 @@ FIAP-MLE-Fase01/
 
 ### Pré-requisitos
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/) — gerenciador de pacotes e ambientes virtuais
 - Git
 - Make (opcional, mas recomendado)
+
+### Instalação do uv
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Via pip (qualquer OS)
+pip install uv
+```
+
+> O `uv` substitui o pip + venv com resolução de dependências muito mais rápida.
+> O arquivo `uv.lock` garante que todos do grupo usem exatamente as mesmas versões.
 
 ### 1. Clone o repositório
 ```bash
@@ -69,39 +86,36 @@ git clone git@github.com:bbryttos/FIAP-MLE-Fase01.git
 cd FIAP-MLE-Fase01
 ```
 
-### 2. Crie e ative o ambiente virtual
-
+### 2. Crie o ambiente virtual e instale as dependências
 ```bash
-python -m venv .venv
-
-# Linux/macOS
-source .venv/bin/activate
-
-# Windows
-.venv\Scripts\activate
+uv sync --extra dev
 ```
 
-**PyCharm:** File → Open → seleciona a pasta → "Add New Interpreter" → Virtualenv → Python 3.10+
+> O `uv` cria automaticamente o `.venv`, resolve e instala todas as dependências
+> definidas no `pyproject.toml` (produção + dev). O `uv.lock` garante reprodutibilidade total.
 
-**VSCode:** `Ctrl+Shift+P` → "Python: Create Environment" → Venv → Python 3.10+
+**PyCharm:** File → Settings → Python Interpreter → Add → Existing → selecione `.venv/bin/python`
 
-### 3. Instale as dependências
-```bash
-pip install --upgrade pip setuptools wheel
-pip install -e ".[dev]"
-```
+**VSCode:** `Ctrl+Shift+P` → "Python: Select Interpreter" → selecione `.venv/bin/python`
 
-### 4. Configure as variáveis de ambiente
+### 3. Configure as variáveis de ambiente
 ```bash
 cp .env.example .env
 # edite o .env conforme seu ambiente
 ```
 
-### 5. Valide a instalação
+### 4. Valide a instalação
 ```bash
-python -c "from src.utils.config import settings; print('Seed:', settings.seed)"
+uv run python -c "from src.utils.config import settings; print('Seed:', settings.seed)"
 # Saída esperada: Seed: 42
 ```
+
+> **Sem uv?** Também é possível usar pip:
+> ```bash
+> python -m venv .venv && source .venv/bin/activate
+> pip install --upgrade pip setuptools wheel
+> pip install -e ".[dev]"
+> ```
 
 ---
 
@@ -118,6 +132,9 @@ make mlflow-ui      # abre o MLflow UI (localhost:5000)
 make docker-build   # builda a imagem Docker
 ```
 
+> Com `uv`, prefixe os comandos com `uv run` se o ambiente não estiver ativado:
+> `uv run pytest tests/ -v`
+
 ---
 
 ## 🧪 Testes
@@ -133,7 +150,7 @@ O projeto mantém cobertura mínima de 3 testes obrigatórios:
 ```bash
 make test
 # ou
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ---
@@ -159,6 +176,8 @@ Todos os experimentos são rastreados no MLflow:
 
 ```bash
 make mlflow-ui
+# ou
+uv run mlflow ui --port 5000
 # Acesse: http://localhost:5000
 ```
 
@@ -170,6 +189,8 @@ Métricas rastreadas: `AUC-ROC`, `PR-AUC`, `F1-Score`, `Precision`, `Recall`
 
 ```bash
 make run-api
+# ou
+uv run uvicorn src.api.main:app --reload --port 8000
 # Acesse: http://localhost:8000/docs
 ```
 
@@ -226,6 +247,7 @@ Documentação de arquitetura: [`docs/model_card.md`](docs/model_card.md)
 | German Eduardo Brunner |RM375046|brunner.brunner@gmail.com| Dados / Machine Learning Engineering                           |
 | Marcelo da Cruz Salvador |RM375166|macrusal@gmail.com| Dados / Machine Learning Engineering                           |
 
+---
 
 ## 📄 Licença
 
