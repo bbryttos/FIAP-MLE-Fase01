@@ -48,3 +48,13 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Logs
+logs/
+mlflow.db
+notebooks/logs/
+churn_prediction.egg-info/
+
+# Claude
+CLAUDE.md
+.claude/
