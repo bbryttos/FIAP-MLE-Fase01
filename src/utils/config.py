@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     # API
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
+    api_version: str = Field(default="1.0.0")
+    models_dir: str = Field(default="models")
 
     # Logging
     log_level: str = Field(default="INFO")
