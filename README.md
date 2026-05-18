@@ -24,7 +24,7 @@ boas práticas de Machine Learning Engineering:
 - **Serving:** API REST com FastAPI + Pydantic
 - **Deploy:** Docker + AWS ECS Fargate (bônus)
 
----
+Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/telco_churn.csv`.
 
 ## 🗂️ Estrutura do Projeto
 
