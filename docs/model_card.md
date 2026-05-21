@@ -5,7 +5,7 @@
 | Campo | Valor |
 |-------|-------|
 | **Nome** | ChurnMLP |
-| **Versão** | 0.1.0 |
+| **Versão** | 1.0.0 |
 | **Tipo** | Multi-Layer Perceptron (PyTorch) |
 | **Arquitetura** | Linear(input→64) → BN → ReLU → Dropout(0.3) → Linear(64→32) → BN → ReLU → Dropout(0.3) → Linear(32→16) → BN → ReLU → Dropout(0.3) → Linear(16→1) |
 | **Loss** | BCEWithLogitsLoss com pos_weight (balanceamento de classe) |
@@ -47,6 +47,7 @@
 | DummyClassifier | ~0.50 | ~0.27 | ~0.27 | ~0.73 |
 | LogisticRegression | ~0.84 | ~0.60 | ~0.68 | ~0.80 |
 | RandomForest | ~0.83 | ~0.60 | ~0.66 | ~0.80 |
+| RF Tuned (RandomizedSearchCV) | ~0.85 | ~0.62 | ~0.69 | ~0.81 |
 | GradientBoosting | ~0.85 | ~0.62 | ~0.70 | ~0.81 |
 | **ChurnMLP** | **~0.86** | **~0.63** | **~0.72** | **~0.81** |
 
@@ -75,13 +76,20 @@
 
 ## Implantação
 
-- **Modo:** Real-time via FastAPI (`POST /predict`).
+- **Modo:** Real-time via FastAPI (`POST /predict`) ou batch via (`POST /predict-batch`).
 - **Threshold padrão:** 0.5 (configurável via variável de ambiente `PREDICTION_THRESHOLD`).
 - **Latência esperada:** < 50ms por predição (CPU).
 - **Dependências:** ver `pyproject.toml`.
 
+## Monitoramento
+
+- Monitorar distribuição de `churn_probability` em produção semanalmente.
+- Alerta se F1 cair mais de 5 pontos percentuais vs. baseline.
+- Retreinar mensalmente ou quando drift for detectado (PSI > 0.2 ou KS p-value < 0.05).
+- Módulo de drift: `src/monitoring/drift_detection.py` (KS test + PSI por feature numérica).
+
 ## Manutenção
 
 - **Re-treino recomendado:** Mensal ou quando AUC-ROC no tráfego real cair > 3 pontos percentuais.
-- **Responsável:** Equipe de ML Engineering.
+- **Responsável:** Equipe de ML Engineering — FIAP 10MLET Tech Challenge Fase 1.
 - **Feedback loop:** Coletar ground-truth de churn 30-60 dias após predição para calcular métricas reais.

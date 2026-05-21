@@ -1,11 +1,13 @@
-.PHONY: install lint format test train run mlflow
+.PHONY: install lint lint-fix format test train run mlflow clean
 
 install:
 	pip install -e ".[dev]"
 
 lint:
 	ruff check src/ tests/ train.py
-	ruff format --check src/ tests/ train.py
+
+lint-fix:
+	ruff check --fix src/ tests/ train.py
 
 format:
 	ruff format src/ tests/ train.py
@@ -17,7 +19,12 @@ train:
 	python train.py
 
 run:
-	uvicorn src.api.app:app --reload --port 8000
+	uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
 
 mlflow:
-	mlflow ui --port 5000
+	mlflow ui --host 0.0.0.0 --port 5000
+
+clean:
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -name "*.pyc" -delete
+	rm -rf .pytest_cache htmlcov .coverage
