@@ -1,0 +1,13 @@
+.gitignore
+  ai_agent 8,25,35,62-65
+uv.lock
+  ai_agent 573,608,672,744,1607,2314,2419,2770-2797,2982,4155,4204,4256,4317,4389,4442
+pyproject.toml
+  ai_agent 11-13,16-20,22,24,26,28,30,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "539d25ce7a25ed107a83c2fcfdad5953cc0173ae",
+  "prompts": {}
+}
