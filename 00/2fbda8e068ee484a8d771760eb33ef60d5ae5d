@@ -1,0 +1,25 @@
+.python-version
+  ai_agent 1
+pyproject.toml
+  ai_agent 21-27,34,38,50,53-56,60-65
+src/utils/logger.py
+  ai_agent 1-55
+uv.lock
+  ai_agent 1-5411
+Dockerfile
+  ai_agent 1-13
+docs/model_card.md
+  ai_agent 8,50,79,84-90,94
+.gitignore
+  ai_agent 1,4-6,9-12,15,20-25,27-46,53-55,57-58
+src/utils/__init__.py
+  ai_agent 1-4
+src/utils/config.py
+  ai_agent 1-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "002fbda8e068ee484a8d771760eb33ef60d5ae5d",
+  "prompts": {}
+}
