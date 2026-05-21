@@ -23,7 +23,7 @@ boas práticas de Machine Learning Engineering:
 - **Serving:** API REST com FastAPI + Pydantic (single e batch inference)
 - **Monitoramento:** Drift detection com KS test + PSI
 
----
+Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/telco_churn.csv`.
 
 ## Estrutura
 
