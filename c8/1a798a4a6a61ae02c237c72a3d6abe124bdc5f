@@ -1,0 +1,19 @@
+.gitignore
+  s_b024e7ea181d14::t_b17f8083171dc4 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "c81a798a4a6a61ae02c237c72a3d6abe124bdc5f",
+  "prompts": {},
+  "sessions": {
+    "s_b024e7ea181d14": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "213e8c78-1a63-45aa-917e-a3134a1ffbd5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "German Eduardo Brunner <german.brunner@mercadopago.com.br>"
+    }
+  }
+}
