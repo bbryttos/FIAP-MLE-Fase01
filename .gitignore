@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .Python
 *.egg-info/
+churn_prediction.egg-info/
 dist/
 build/
 .eggs/
@@ -21,6 +22,7 @@ models/*.pkl
 models/results.json
 mlruns/
 mlartifacts/
+mlflow.db
 
 # Data
 /data/
@@ -30,6 +32,7 @@ data/processed/
 
 # Jupyter
 .ipynb_checkpoints/
+notebooks/logs/
 
 # Environment
 .env
@@ -56,3 +59,7 @@ htmlcov/
 
 # Logs
 logs/
+
+# Claude
+CLAUDE.md
+.claude/
