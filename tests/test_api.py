@@ -6,25 +6,25 @@ from src.api.app import app
 from src.models.mlp import MLP
 
 VALID_PAYLOAD = {
-    "SeniorCitizen": 0,
+    "senior_citizen": 0,
     "tenure": 12,
-    "MonthlyCharges": 65.5,
-    "TotalCharges": 786.0,
+    "monthly_charges": 65.5,
+    "total_charges": 786.0,
     "gender": "Male",
-    "Partner": "Yes",
-    "Dependents": "No",
-    "PhoneService": "Yes",
-    "MultipleLines": "No",
-    "InternetService": "Fiber optic",
-    "OnlineSecurity": "No",
-    "OnlineBackup": "Yes",
-    "DeviceProtection": "No",
-    "TechSupport": "No",
-    "StreamingTV": "No",
-    "StreamingMovies": "No",
-    "Contract": "Month-to-month",
-    "PaperlessBilling": "Yes",
-    "PaymentMethod": "Electronic check",
+    "partner": "Yes",
+    "dependents": "No",
+    "phone_service": "Yes",
+    "multiple_lines": "No",
+    "internet_service": "Fiber optic",
+    "online_security": "No",
+    "online_backup": "Yes",
+    "device_protection": "No",
+    "tech_support": "No",
+    "streaming_tv": "No",
+    "streaming_movies": "No",
+    "contract": "Month-to-month",
+    "paperless_billing": "Yes",
+    "payment_method": "Electronic check",
 }
 
 
@@ -101,7 +101,7 @@ def test_predict_missing_field_returns_422(client):
 
 
 def test_predict_invalid_senior_citizen_returns_422(client):
-    payload = {**VALID_PAYLOAD, "SeniorCitizen": 5}
+    payload = {**VALID_PAYLOAD, "senior_citizen": 5}
     response = client.post("/predict", json=payload)
     assert response.status_code == 422
 

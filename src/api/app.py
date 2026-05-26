@@ -38,14 +38,14 @@ async def lifespan(app: FastAPI):
             # fallback para modelos treinados antes da persistência de metadata
             logger.warning("model_config.json ausente — inferindo input_dim via preprocessor")
             dummy = {
-                "tenure": [0], "MonthlyCharges": [0.0], "TotalCharges": [0.0],
-                "SeniorCitizen": [0], "gender": ["Male"], "Partner": ["No"],
-                "Dependents": ["No"], "PhoneService": ["No"], "MultipleLines": ["No"],
-                "InternetService": ["No"], "OnlineSecurity": ["No internet service"],
-                "OnlineBackup": ["No internet service"], "DeviceProtection": ["No internet service"],
-                "TechSupport": ["No internet service"], "StreamingTV": ["No internet service"],
-                "StreamingMovies": ["No internet service"], "Contract": ["Month-to-month"],
-                "PaperlessBilling": ["No"], "PaymentMethod": ["Mailed check"],
+                "tenure": [0], "monthly_charges": [0.0], "total_charges": [0.0],
+                "senior_citizen": [0], "gender": ["Male"], "partner": ["No"],
+                "dependents": ["No"], "phone_service": ["No"], "multiple_lines": ["No"],
+                "internet_service": ["No"], "online_security": ["No internet service"],
+                "online_backup": ["No internet service"], "device_protection": ["No internet service"],
+                "tech_support": ["No internet service"], "streaming_tv": ["No internet service"],
+                "streaming_movies": ["No internet service"], "contract": ["Month-to-month"],
+                "paperless_billing": ["No"], "payment_method": ["Mailed check"],
             }
             input_dim = preprocessor.transform(pd.DataFrame(dummy)).shape[1]
 
