@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Caminhos — sempre relativos à raiz do projeto
     model_path: Path = Field(default=PROJECT_ROOT / "models" / "mlp_churn.pt")
     data_path: Path = Field(
-        default=PROJECT_ROOT / "data" / "raw" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
+        default=PROJECT_ROOT / "data" / "raw" / "Telco_customer_churn.csv"
     )
     log_path: Path = Field(default=PROJECT_ROOT / "logs" / "churn_prediction.log")
 
