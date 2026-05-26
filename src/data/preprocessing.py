@@ -9,29 +9,64 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 logger = logging.getLogger(__name__)
 
 RANDOM_STATE = 42
-TARGET_COL = "Churn"
+TARGET_COL = "churn"
 
-NUMERIC_COLS = ["tenure", "MonthlyCharges", "TotalCharges"]
-BINARY_COLS = ["SeniorCitizen"]
+# Mapeamento dos nomes originais do CSV para snake_case interno
+COLUMN_MAP = {
+    "CustomerID": "customer_id",
+    "Gender": "gender",
+    "Senior Citizen": "senior_citizen",
+    "Partner": "partner",
+    "Dependents": "dependents",
+    "Tenure Months": "tenure",
+    "Phone Service": "phone_service",
+    "Multiple Lines": "multiple_lines",
+    "Internet Service": "internet_service",
+    "Online Security": "online_security",
+    "Online Backup": "online_backup",
+    "Device Protection": "device_protection",
+    "Tech Support": "tech_support",
+    "Streaming TV": "streaming_tv",
+    "Streaming Movies": "streaming_movies",
+    "Contract": "contract",
+    "Paperless Billing": "paperless_billing",
+    "Payment Method": "payment_method",
+    "Monthly Charges": "monthly_charges",
+    "Total Charges": "total_charges",
+    "Churn Label": "churn",
+}
+
+NUMERIC_COLS = ["tenure", "monthly_charges", "total_charges"]
+BINARY_COLS = ["senior_citizen"]
 CATEGORICAL_COLS = [
-    "gender", "Partner", "Dependents", "PhoneService", "MultipleLines",
-    "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection",
-    "TechSupport", "StreamingTV", "StreamingMovies", "Contract",
-    "PaperlessBilling", "PaymentMethod",
+    "gender", "partner", "dependents", "phone_service", "multiple_lines",
+    "internet_service", "online_security", "online_backup", "device_protection",
+    "tech_support", "streaming_tv", "streaming_movies", "contract",
+    "paperless_billing", "payment_method",
 ]
 
 # Colunas geradas por src/features/engineering.py
 ENGINEERED_NUMERIC_COLS = ["charges_per_tenure", "num_services"]
 ENGINEERED_BINARY_COLS = [
     "is_new_customer", "is_long_term", "is_monthly_contract", "is_electronic_check",
-    "has_phoneservice", "has_multiplelines", "has_onlinesecurity", "has_onlinebackup",
-    "has_deviceprotection", "has_techsupport", "has_streamingtv", "has_streamingmovies",
+    "has_phone_service", "has_multiple_lines", "has_online_security", "has_online_backup",
+    "has_device_protection", "has_tech_support", "has_streaming_tv", "has_streaming_movies",
 ]
 
 
-def load_data(path: str) -> pd.DataFrame:
+def load_data(path) -> pd.DataFrame:
     logger.info("Loading data from %s", path)
-    df = pd.read_csv(path)
+    df = pd.read_csv(str(path), encoding="utf-8")
+
+    df = df.rename(columns=COLUMN_MAP)
+
+    # Remove colunas não mapeadas (geo, scores, churn_reason, etc.)
+    keep = set(COLUMN_MAP.values())
+    extra = [c for c in df.columns if c not in keep]
+    if extra:
+        df = df.drop(columns=extra)
+        logger.debug("Dropped %d unmapped columns", len(extra))
+
     logger.info("Loaded %d rows, %d columns", *df.shape)
     return df
 
@@ -39,11 +74,17 @@ def load_data(path: str) -> pd.DataFrame:
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    if "customerID" in df.columns:
-        df = df.drop(columns=["customerID"])
+    if "customer_id" in df.columns:
+        df = df.drop(columns=["customer_id"])
 
-    if df["TotalCharges"].dtype == object:
-        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+    # senior_citizen vem como "Yes"/"No" do Excel; converte para int
+    if "senior_citizen" in df.columns and df["senior_citizen"].dtype == object:
+        df["senior_citizen"] = (
+            df["senior_citizen"].str.strip().str.lower() == "yes"
+        ).astype(int)
+
+    if df["total_charges"].dtype == object:
+        df["total_charges"] = pd.to_numeric(df["total_charges"], errors="coerce")
 
     for col in NUMERIC_COLS:
         if col in df.columns:
@@ -105,11 +146,7 @@ def build_preprocessor() -> ColumnTransformer:
 
 
 def build_full_pipeline() -> Pipeline:
-    """Pipeline sklearn completo: FeatureEngineer → ColumnTransformer.
-
-    Salvo em joblib, garante que inferência e treino passem pelo mesmo
-    pré-processamento de forma reprodutível.
-    """
+    """Pipeline sklearn completo: FeatureEngineer → ColumnTransformer."""
     from src.features.engineering import FeatureEngineerTransformer
 
     return Pipeline([

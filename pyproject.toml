@@ -25,6 +25,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     # Data validation
     "pandera>=0.18.0",
+    "openpyxl>=3.1.0",             # leitura de arquivos Excel (opcional)
     # Utilities
     "python-dotenv>=1.0.0",       # carregamento de .env (seeds, paths)
     "loguru>=0.7.2",              # logging estruturado — obrigatório pelo Tech Challenge

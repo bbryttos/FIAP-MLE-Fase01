@@ -8,49 +8,49 @@ class ClienteInput(BaseModel):
         str_strip_whitespace=True,
         json_schema_extra={
             "example": {
-                "SeniorCitizen": 0,
+                "senior_citizen": 0,
                 "tenure": 12,
-                "MonthlyCharges": 65.5,
-                "TotalCharges": 786.0,
+                "monthly_charges": 65.5,
+                "total_charges": 786.0,
                 "gender": "Male",
-                "Partner": "Yes",
-                "Dependents": "No",
-                "PhoneService": "Yes",
-                "MultipleLines": "No",
-                "InternetService": "Fiber optic",
-                "OnlineSecurity": "No",
-                "OnlineBackup": "Yes",
-                "DeviceProtection": "No",
-                "TechSupport": "No",
-                "StreamingTV": "No",
-                "StreamingMovies": "No",
-                "Contract": "Month-to-month",
-                "PaperlessBilling": "Yes",
-                "PaymentMethod": "Electronic check",
+                "partner": "Yes",
+                "dependents": "No",
+                "phone_service": "Yes",
+                "multiple_lines": "No",
+                "internet_service": "Fiber optic",
+                "online_security": "No",
+                "online_backup": "Yes",
+                "device_protection": "No",
+                "tech_support": "No",
+                "streaming_tv": "No",
+                "streaming_movies": "No",
+                "contract": "Month-to-month",
+                "paperless_billing": "Yes",
+                "payment_method": "Electronic check",
             }
         },
     )
 
-    SeniorCitizen: int = Field(..., ge=0, le=1, description="0=Nao, 1=Sim")
+    senior_citizen: int = Field(..., ge=0, le=1, description="0=Nao, 1=Sim")
     tenure: int = Field(..., ge=0, description="Meses como cliente")
-    MonthlyCharges: float = Field(..., gt=0, description="Cobranca mensal em USD")
-    TotalCharges: float = Field(..., ge=0, description="Cobranca total acumulada")
+    monthly_charges: float = Field(..., gt=0, description="Cobranca mensal em USD")
+    total_charges: float = Field(..., ge=0, description="Cobranca total acumulada")
 
     gender: Literal["Male", "Female"]
-    Partner: Literal["Yes", "No"]
-    Dependents: Literal["Yes", "No"]
-    PhoneService: Literal["Yes", "No"]
-    MultipleLines: Literal["Yes", "No", "No phone service"]
-    InternetService: Literal["DSL", "Fiber optic", "No"]
-    OnlineSecurity: Literal["Yes", "No", "No internet service"]
-    OnlineBackup: Literal["Yes", "No", "No internet service"]
-    DeviceProtection: Literal["Yes", "No", "No internet service"]
-    TechSupport: Literal["Yes", "No", "No internet service"]
-    StreamingTV: Literal["Yes", "No", "No internet service"]
-    StreamingMovies: Literal["Yes", "No", "No internet service"]
-    Contract: Literal["Month-to-month", "One year", "Two year"]
-    PaperlessBilling: Literal["Yes", "No"]
-    PaymentMethod: Literal[
+    partner: Literal["Yes", "No"]
+    dependents: Literal["Yes", "No"]
+    phone_service: Literal["Yes", "No"]
+    multiple_lines: Literal["Yes", "No", "No phone service"]
+    internet_service: Literal["DSL", "Fiber optic", "No"]
+    online_security: Literal["Yes", "No", "No internet service"]
+    online_backup: Literal["Yes", "No", "No internet service"]
+    device_protection: Literal["Yes", "No", "No internet service"]
+    tech_support: Literal["Yes", "No", "No internet service"]
+    streaming_tv: Literal["Yes", "No", "No internet service"]
+    streaming_movies: Literal["Yes", "No", "No internet service"]
+    contract: Literal["Month-to-month", "One year", "Two year"]
+    paperless_billing: Literal["Yes", "No"]
+    payment_method: Literal[
         "Electronic check",
         "Mailed check",
         "Bank transfer (automatic)",
