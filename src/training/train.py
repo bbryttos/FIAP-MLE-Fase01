@@ -28,7 +28,7 @@ RANDOM_STATE = 42
 MODELS_DIR = Path("models")
 MODELS_DIR.mkdir(exist_ok=True)
 
-DATA_PATH = "data/raw/telco_churn.csv"
+DATA_PATH = "data/raw/Telco_customer_churn.csv"
 MLFLOW_EXPERIMENT = "churn-prediction"
 
 MLP_PARAMS = {

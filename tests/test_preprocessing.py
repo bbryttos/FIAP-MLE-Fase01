@@ -9,7 +9,7 @@ from src.data.preprocessing import build_full_pipeline, clean_data, split_data
 def sample_df():
     n = 20
     genders = (["Male", "Female"] * 10)[:n]
-    senior = ([0, 1, 0, 0] * 5)[:n]
+    senior = (["No", "Yes", "No", "No"] * 5)[:n]
     partners = (["Yes", "No"] * 10)[:n]
     dependents = (["No", "Yes"] * 10)[:n]
     tenures = list(range(1, n + 1))
@@ -30,55 +30,60 @@ def sample_df():
     # 12 No, 8 Yes — enough for stratified splits with test_size=0.2, val_size=0.1
     churn = (["No"] * 3 + ["Yes"] * 2) * 4
     return pd.DataFrame({
-        "customerID": [f"A{i:03d}" for i in range(1, n + 1)],
+        "customer_id": [f"A{i:03d}" for i in range(1, n + 1)],
         "gender": genders,
-        "SeniorCitizen": senior,
-        "Partner": partners,
-        "Dependents": dependents,
+        "senior_citizen": senior,
+        "partner": partners,
+        "dependents": dependents,
         "tenure": tenures,
-        "PhoneService": phone,
-        "MultipleLines": multi,
-        "InternetService": internet,
-        "OnlineSecurity": security,
-        "OnlineBackup": backup,
-        "DeviceProtection": device,
-        "TechSupport": tech,
-        "StreamingTV": tv,
-        "StreamingMovies": movies,
-        "Contract": contracts,
-        "PaperlessBilling": billing,
-        "PaymentMethod": payment,
-        "MonthlyCharges": monthly,
-        "TotalCharges": total,
-        "Churn": churn,
+        "phone_service": phone,
+        "multiple_lines": multi,
+        "internet_service": internet,
+        "online_security": security,
+        "online_backup": backup,
+        "device_protection": device,
+        "tech_support": tech,
+        "streaming_tv": tv,
+        "streaming_movies": movies,
+        "contract": contracts,
+        "paperless_billing": billing,
+        "payment_method": payment,
+        "monthly_charges": monthly,
+        "total_charges": total,
+        "churn": churn,
     })
 
 
 def test_clean_removes_customer_id(sample_df):
     df = clean_data(sample_df)
-    assert "customerID" not in df.columns
+    assert "customer_id" not in df.columns
 
 
 def test_clean_total_charges_numeric(sample_df):
     df = clean_data(sample_df)
-    assert df["TotalCharges"].dtype in [float, np.float64]
+    assert df["total_charges"].dtype in [float, np.float64]
 
 
 def test_clean_target_binary(sample_df):
     df = clean_data(sample_df)
-    assert set(df["Churn"].unique()).issubset({0, 1})
+    assert set(df["churn"].unique()).issubset({0, 1})
+
+
+def test_clean_senior_citizen_binary(sample_df):
+    df = clean_data(sample_df)
+    assert set(df["senior_citizen"].unique()).issubset({0, 1})
 
 
 def test_clean_no_nulls_after_imputation(sample_df):
-    sample_df.loc[0, "MonthlyCharges"] = np.nan
-    sample_df.loc[1, "TotalCharges"] = " "
+    sample_df.loc[0, "monthly_charges"] = np.nan
+    sample_df.loc[1, "total_charges"] = " "
     df = clean_data(sample_df)
     assert df.isnull().sum().sum() == 0
 
 
 def test_preprocessor_output_2d(sample_df):
     df = clean_data(sample_df)
-    X = df.drop(columns=["Churn"])
+    X = df.drop(columns=["churn"])
     pipeline = build_full_pipeline()
     X_transformed = pipeline.fit_transform(X)
     assert X_transformed.ndim == 2
