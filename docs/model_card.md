@@ -10,41 +10,54 @@ Rede neural MLP (Multi-Layer Perceptron) treinada com PyTorch para prever a prob
 
 ## Dados de Treinamento
 
-| Atributo         | Valor                                                    |
-|------------------|----------------------------------------------------------|
-| Fonte            | IBM Telco Customer Churn Dataset                         |
-| Registros totais | 7.043 clientes                                           |
-| Split            | 70% treino / 10% validacao / 20% teste (estratificado)  |
-| Taxa de churn    | 26,5% (desbalanceamento moderado)                        |
-| Features raw     | 19 variaveis (demograficas, contratuais, de uso, cobranca) |
-| Features apos eng.| 33 variaveis (19 raw + 14 derivadas)                   |
-| Input dim (MLP)  | 59 (apos one-hot encoding das categoricas)               |
-| Target           | `Churn` (binario: 0 = nao cancela, 1 = cancela)         |
+| Atributo | Valor |
+| --- | --- |
+| Fonte | IBM Telco Customer Churn Dataset |
+| Arquivo | `data/raw/Telco_customer_churn.csv` |
+| Colunas no CSV | 33 (demograficas, geograficas, contratuais, de uso, cobranca, churn) |
+| Colunas usadas | 21 (mapeadas via `COLUMN_MAP` em `src/data/preprocessing.py`) |
+| Registros totais | 7.043 clientes |
+| Split | 70% treino / 10% validacao / 20% teste (estratificado por churn) |
+| Taxa de churn | 26,5% (1.869 churners / 7.043 clientes) |
+| Features raw | 19 variaveis (3 numericas + 1 binaria + 15 categoricas) |
+| Features apos eng. | 33 variaveis (19 raw + 14 derivadas) |
+| Input dim (MLP) | 59 (apos one-hot encoding das 15 categoricas) |
+| Target | `churn` (binario: 0 = nao cancela, 1 = cancela) |
+
+> **Nota:** Colunas `Churn Reason`, `Churn Score`, `CLTV`, `City`, `Zip Code`, `Lat Long`, `Latitude`, `Longitude`, `Country`, `State` e `Count` sao descartadas antes do treinamento para evitar data leakage e reducao de dimensionalidade geografica.
+
+### Features Raw Utilizadas
+
+| Grupo | Colunas |
+| --- | --- |
+| Numericas | `tenure`, `monthly_charges`, `total_charges` |
+| Binaria | `senior_citizen` |
+| Categoricas | `gender`, `partner`, `dependents`, `phone_service`, `multiple_lines`, `internet_service`, `online_security`, `online_backup`, `device_protection`, `tech_support`, `streaming_tv`, `streaming_movies`, `contract`, `paperless_billing`, `payment_method` |
 
 ### Features Derivadas (Engenharia de Features)
 
-| Feature                  | Descricao                                      |
-|--------------------------|------------------------------------------------|
-| `charges_per_tenure`     | Custo medio por mes de contrato                |
-| `num_services`           | Quantidade de servicos contratados             |
-| `is_new_customer`        | Indicador: tenure <= 12 meses                  |
-| `is_long_term_customer`  | Indicador: tenure >= 48 meses                  |
-| `high_monthly_charges`   | Indicador: MonthlyCharges > percentil 75       |
-| `service_bundle_score`   | Score ponderado de bundle de servicos          |
-| `has_tech_support`       | Flag para suporte tecnico ativo                |
-| `has_security`           | Flag para servico de seguranca online          |
-| `has_backup`             | Flag para backup online                        |
-| `has_protection`         | Flag para protecao de dispositivo              |
-| `contract_risk_score`    | Pontuacao de risco baseada no tipo de contrato |
-| `payment_risk`           | Indicador de metodo de pagamento manual        |
-| `paperless_and_auto`     | Flag: fatura digital + pagamento automatico    |
-| `tenure_x_monthly`       | Interacao entre tenure e custo mensal          |
+| Feature | Descricao |
+| --- | --- |
+| `charges_per_tenure` | Custo medio por mes: `monthly_charges / (tenure + ε)` |
+| `num_services` | Contagem de servicos ativos (soma dos `has_*`) |
+| `is_new_customer` | Flag: tenure <= 3 meses |
+| `is_long_term` | Flag: tenure > 24 meses |
+| `is_monthly_contract` | Flag: contrato "Month-to-month" |
+| `is_electronic_check` | Flag: pagamento via cheque eletronico |
+| `has_phone_service` | Flag: servico de telefonia ativo |
+| `has_multiple_lines` | Flag: multiplas linhas ativas |
+| `has_online_security` | Flag: seguranca online ativa |
+| `has_online_backup` | Flag: backup online ativo |
+| `has_device_protection` | Flag: protecao de dispositivo ativa |
+| `has_tech_support` | Flag: suporte tecnico ativo |
+| `has_streaming_tv` | Flag: streaming de TV ativo |
+| `has_streaming_movies` | Flag: streaming de filmes ativo |
 
 ---
 
 ## Arquitetura do Modelo
 
-```
+```text
 Input (59)
    │
    ├─► Linear(59→128) → BatchNorm(128) → ReLU → Dropout(0.3)
@@ -58,52 +71,50 @@ Input (59)
         Sigmoid → churn_probability ∈ [0, 1]
 ```
 
-| Componente       | Escolha             | Justificativa                                          |
-|------------------|---------------------|--------------------------------------------------------|
-| Camadas ocultas  | [128, 64, 32]       | Compressao gradual; evita bottleneck abrupto           |
-| Ativacao         | ReLU                | Evita vanishing gradient em redes moderadas            |
-| Regularizacao    | Dropout(0.3)        | Reduz overfitting em dataset pequeno (~5k treino)      |
-| Normalizacao     | BatchNorm           | Estabiliza gradientes, acelera convergencia            |
-| Loss             | BCEWithLogitsLoss   | Numericamente estavel para classificacao binaria       |
-| Otimizador       | Adam (lr=1e-3)      | Adaptativo; padrao para MLPs em dados tabulares        |
-| Early stopping   | patience=10 epochs  | Interrompe ao detectar overfitting; restaura best ckpt |
+| Componente | Escolha | Justificativa |
+| --- | --- | --- |
+| Camadas ocultas | [128, 64, 32] | Compressao gradual; evita bottleneck abrupto |
+| Ativacao | ReLU | Evita vanishing gradient em redes moderadas |
+| Regularizacao | Dropout(0.3) | Reduz overfitting em dataset pequeno (~5k treino) |
+| Normalizacao | BatchNorm | Estabiliza gradientes, acelera convergencia |
+| Loss | BCEWithLogitsLoss | Numericamente estavel para classificacao binaria |
+| Otimizador | Adam (lr=1e-3) | Adaptativo; padrao para MLPs em dados tabulares |
+| Early stopping | patience=10 epochs | Interrompe ao detectar overfitting; restaura best ckpt |
 
 ---
 
 ## Metricas (conjunto de teste — 1.409 registros, 374 churners)
 
-### Modelo Principal: MLP PyTorch
+### Modelo Principal: MLP PyTorch (threshold = 0.50)
 
-| Metrica    | Threshold 0.50 | Threshold 0.40 (max F1) |
-|------------|:--------------:|:-----------------------:|
-| F1-Score   | 0.6165         | **0.6386**              |
-| AUC-ROC    | 0.8429         | 0.8429                  |
-| PR-AUC     | 0.6497         | 0.6497                  |
-| Precisao   | 0.6443         | 0.5845                  |
-| Recall     | 0.5909         | **0.7059**              |
-| Acuracia   | 0.8048         | 0.7856                  |
+| Metrica | Valor |
+| --- | :---: |
+| F1-Score | **0.6245** |
+| AUC-ROC | **0.8567** |
+| Precisao | 0.6588 |
+| Recall | 0.5936 |
+| Acuracia | 0.8105 |
 
-### Matriz de Confusao
+### Matriz de Confusao (threshold = 0.50)
 
-| Threshold | TP  | FP  | FN  | TN  |
-|-----------|-----|-----|-----|-----|
-| t = 0.50  | 221 | 122 | 153 | 913 |
-| t = 0.40  | 264 | 188 | 110 | 847 |
-| t = 0.10  | 356 | 547 |  18 | 488 |
+| | Previsto: Nao Churn | Previsto: Churn |
+| --- | :---: | :---: |
+| Real: Nao Churn | TN = 920 | FP = 115 |
+| Real: Churn | FN = 152 | TP = 222 |
 
 ---
 
 ## Comparacao com Baselines
 
-| Modelo                  | F1     | AUC-ROC | Precisao | Recall | Acuracia |
-|-------------------------|--------|---------|----------|--------|----------|
-| DummyClassifier         | 0.2903 | 0.5163  | 0.2891   | 0.2914 | 0.6217   |
-| Logistic Regression     | 0.5935 | 0.8468  | 0.6667   | 0.5348 | 0.8055   |
-| Random Forest           | 0.5401 | 0.8200  | 0.6067   | 0.4866 | 0.7800   |
-| Gradient Boosting       | 0.5939 | 0.8429  | 0.6853   | 0.5241 | 0.8098   |
-| **MLP PyTorch**         | **0.6165** | **0.8429** | 0.6443 | **0.5909** | 0.8048 |
+| Modelo | F1 | AUC-ROC | Precisao | Recall | Acuracia |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| DummyClassifier | 0.2903 | 0.5163 | 0.2891 | 0.2914 | 0.6217 |
+| Random Forest | 0.5760 | 0.8323 | 0.6355 | 0.5267 | 0.7942 |
+| Gradient Boosting | 0.5944 | 0.8555 | 0.6689 | 0.5348 | 0.8062 |
+| Logistic Regression | 0.6141 | 0.8533 | 0.6625 | 0.5722 | 0.8091 |
+| **MLP PyTorch** | **0.6245** | **0.8567** | 0.6588 | **0.5936** | **0.8105** |
 
-**Conclusao:** O MLP supera todos os baselines em F1 e Recall, mantendo AUC-ROC equivalente ao Gradient Boosting. A vantagem e especialmente relevante no Recall, que mede a capacidade de capturar clientes que efetivamente cancelarao.
+**Conclusao:** O MLP supera todos os baselines em F1, AUC-ROC, Recall e Acuracia. O melhor baseline e a Regressao Logistica (F1=0.6141), que o MLP supera em +1,0 p.p. de F1 e +0,34 p.p. de AUC. A vantagem e especialmente relevante no Recall: capturar mais clientes que efetivamente cancelarao e a metrica mais critica para acoes de retencao.
 
 ---
 
@@ -111,22 +122,20 @@ Input (59)
 
 ### Premissas de custo
 
-| Erro          | Custo estimado | Descricao                                     |
-|---------------|:--------------:|-----------------------------------------------|
-| Falso Positivo (FP) | $10     | Acionar retencao para cliente que nao cancelaria |
-| Falso Negativo (FN) | $500    | Perder cliente que cancela sem intervencao   |
+| Erro | Custo estimado | Descricao |
+| --- | :---: | --- |
+| Falso Positivo (FP) | $10 | Acionar retencao para cliente que nao cancelaria |
+| Falso Negativo (FN) | $500 | Perder cliente que cancela sem intervencao |
 
-### Impacto por threshold
+### Impacto (threshold = 0.50)
 
-| Threshold | TP  | FP  | FN  | Custo Total | Economia vs t=0.50 |
-|-----------|-----|-----|-----|:-----------:|:------------------:|
-| 0.50      | 221 | 122 | 153 | $77.720     | —                  |
-| 0.40      | 264 | 188 | 110 | $56.880     | $20.840            |
-| 0.10      | 356 | 547 |  18 | **$14.470** | **$63.250**        |
+| Threshold | TP | FP | FN | TN | Custo Total |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| 0.50 | 222 | 115 | 152 | 920 | **$77.150** |
 
-**Recomendacao operacional:** Usar threshold 0.10 para maximizar recuperacao de clientes churn (Recall=0.95), aceitando maior volume de falsos positivos. O custo total cai 81% em relacao ao threshold padrao de 0.50.
+> **Nota:** Analise completa de multiplos thresholds (0.10, 0.30, 0.40) disponivel no notebook `notebooks/modeling.ipynb`. O threshold otimo varia conforme a capacidade operacional de atendimento da equipe de retencao.
 
-**Recomendacao conservadora:** Usar threshold 0.40 como equilibrio entre F1 e custo quando a capacidade operacional de atendimento e limitada.
+**Recomendacao operacional:** Reduzir o threshold para 0.30–0.40 quando o objetivo e maximizar o Recall (capturar mais churners), aceitando maior volume de contatos desnecessarios. Para capacidade operacional limitada, manter 0.50.
 
 ---
 
@@ -144,44 +153,45 @@ Input (59)
 
 - Treinado com dados de uma unica operadora norte-americana — pode nao generalizar para outros contextos, regioes ou perfis de clientes.
 - Nao inclui variaveis de satisfacao do cliente (NPS, reclamacoes, interacoes com suporte).
+- `Churn Reason` e `Churn Score` foram excluidos do pipeline para evitar leakage — sao validos apenas para diagnostico no EDA.
 - Assume estacionariedade dos padroes de churn; performance degrada com mudancas no perfil de clientes (concept drift ou data drift).
 - Dataset com ~7k registros e de tamanho moderado; modelos de maior complexidade podem sofrer overfitting em producao com distribuicao diferente.
-- Features de cobranca (`MonthlyCharges`, `TotalCharges`) sao sensiveis a mudancas de precificacao ou politicas comerciais.
+- Features de cobranca (`monthly_charges`, `total_charges`) sao sensiveis a mudancas de precificacao ou politicas comerciais.
 - Nao recomendado para decisoes automaticas sem revisao humana em casos com probabilidade entre 0.35 e 0.65 (zona de incerteza).
 
 ---
 
 ## Cenarios de Falha
 
-| Cenario                            | Impacto Esperado                          | Mitigacao                               |
-|------------------------------------|-------------------------------------------|-----------------------------------------|
-| Novos tipos de contrato            | Features de contrato invalidas ou nulas   | Validar schema de entrada na API        |
-| Mudanca no plano de cobranca       | Distribuicao de `MonthlyCharges` desviada | Monitorar PSI mensal; alertar se > 0.2  |
+| Cenario | Impacto Esperado | Mitigacao |
+| --- | --- | --- |
+| Novos tipos de contrato | Features de contrato invalidas ou nulas | Validar schema de entrada na API |
+| Mudanca no plano de cobranca | Distribuicao de `monthly_charges` desviada | Monitorar PSI mensal; alertar se > 0.2 |
 | Segmento de clientes novo (ex.: empresas) | Features demograficas fora do range | Rejeitar ou sinalizar como out-of-distribution |
-| Dados faltantes em features criticas | Imputacao incorreta pelo pipeline     | Validar missingness < 5% por coluna     |
-| API fora do ar durante pico        | Perda de scoring em batch               | Implementar retry + fallback rule-based |
+| Dados faltantes em features criticas | Imputacao incorreta pelo pipeline | Validar missingness < 5% por coluna |
+| API fora do ar durante pico | Perda de scoring em batch | Implementar retry + fallback rule-based |
 
 ---
 
 ## Vies e Fairness
 
-- **Atributos sensiveis presentes nos dados:** `gender` (Male/Female), `SeniorCitizen` (0/1).
+- **Atributos sensiveis presentes nos dados:** `gender` (Male/Female), `senior_citizen` (Yes/No).
 - O modelo foi treinado sem exclusao desses atributos; e necessario avaliar disparidade de performance por grupo antes de uso em producao.
 - **Avaliacao recomendada:** Medir `false_negative_rate` e `false_positive_rate` separadamente para cada grupo usando Fairlearn (`MetricFrame`).
-- Particular atencao ao `SeniorCitizen`: este grupo tem padroes de uso e churn distintos e pode ser desproporcionalmente afetado por limiares subotimos.
+- Particular atencao ao `senior_citizen`: este grupo tem padroes de uso e churn distintos e pode ser desproporcionalmente afetado por limiares subotimos.
 - Monitorar se a taxa de intervencao (acoes de retencao disparadas) e homogenea entre grupos demograficos.
 
 ---
 
 ## Monitoramento em Producao
 
-| Metrica                      | Frequencia | Limiar de Alerta              | Acao                         |
-|------------------------------|------------|-------------------------------|------------------------------|
-| Distribuicao de `churn_probability` | Semanal | PSI > 0.2 vs. baseline    | Investigar data drift        |
-| F1-Score (ground truth delay) | Mensal   | Queda > 5 p.p. vs. baseline   | Acionar retreinamento        |
-| Taxa de missings por feature  | Diaria    | > 5% em qualquer feature critica | Alertar engenharia de dados |
-| Volume de predicoes (OOD)    | Diaria    | > 10% requests com prob. > 0.9 ou < 0.1 inesperado | Revisar distribuicao |
-| Latencia da API (p95)        | Continuo  | > 500ms                       | Escalar ou otimizar inferencia |
+| Metrica | Frequencia | Limiar de Alerta | Acao |
+| --- | --- | --- | --- |
+| Distribuicao de `churn_probability` | Semanal | PSI > 0.2 vs. baseline | Investigar data drift |
+| F1-Score (ground truth delay) | Mensal | Queda > 5 p.p. vs. baseline (0.6245) | Acionar retreinamento |
+| Taxa de missings por feature | Diaria | > 5% em qualquer feature critica | Alertar engenharia de dados |
+| Volume de predicoes (OOD) | Diaria | > 10% requests com prob. extrema inesperada | Revisar distribuicao |
+| Latencia da API (p95) | Continuo | > 500ms | Escalar ou otimizar inferencia |
 
 **Politica de retreinamento:** Retreinar mensalmente com dados dos ultimos 6 meses, ou imediatamente quando PSI > 0.2 ou queda de F1 for detectada.
 
@@ -189,23 +199,23 @@ Input (59)
 
 ## Artefatos do Modelo
 
-| Artefato              | Caminho                        | Descricao                                      |
-|-----------------------|--------------------------------|------------------------------------------------|
-| Pesos do MLP          | `models/mlp_weights.pt`        | Checkpoint PyTorch com best val loss           |
-| Preprocessador        | `models/preprocessor.joblib`   | Pipeline sklearn (FeatureEngineer + Scaler + OHE) |
-| Melhor baseline       | `models/best_baseline.joblib`  | Gradient Boosting (comparacao)                 |
-| Configuracao          | `models/model_config.json`     | `{"input_dim": 59}`                            |
-| Metricas              | `models/results.json`          | Metricas de todos os modelos no test set       |
+| Artefato | Caminho | Descricao |
+| --- | --- | --- |
+| Pesos do MLP | `models/mlp_weights.pt` | Checkpoint PyTorch com best val loss |
+| Preprocessador | `models/preprocessor.joblib` | Pipeline sklearn (FeatureEngineer + Scaler + OHE) |
+| Melhor baseline | `models/best_baseline.joblib` | Logistic Regression (F1=0.6141 no test set) |
+| Configuracao | `models/model_config.json` | `{"input_dim": 59}` |
+| Metricas | `models/results.json` | Metricas de todos os modelos no test set |
 
 ---
 
 ## Responsaveis
 
-| Atributo           | Valor                          |
-|--------------------|--------------------------------|
-| Equipe             | FIAP Tech Challenge — Fase 1   |
-| Autor              | Bruno Brito                    |
-| Data de treinamento | 2026-05                       |
-| Versao             | 1.0.0                          |
-| Framework          | PyTorch 2.x / scikit-learn 1.x |
-| Experimento MLflow | `churn-prediction`             |
+| Atributo | Valor |
+| --- | --- |
+| Equipe | FIAP Tech Challenge — Fase 1 |
+| Autor | Bruno Brito |
+| Data de treinamento | 2026-05 |
+| Versao | 1.1.0 |
+| Framework | PyTorch 2.x / scikit-learn 1.x |
+| Experimento MLflow | `churn-prediction` |
