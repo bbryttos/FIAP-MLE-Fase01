@@ -1,7 +1,7 @@
 .PHONY: install lint test train run clean
 
 install:
-	uv sync --group dev
+	uv sync --extra dev
 
 lint:
 	uv run ruff check src/ tests/

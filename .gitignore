@@ -54,6 +54,7 @@ logs/
 mlflow.db
 notebooks/logs/
 churn_prediction.egg-info/
+mlruns/
 
 # Claude
 CLAUDE.md
