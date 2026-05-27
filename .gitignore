@@ -16,9 +16,9 @@ venv/
 env/
 
 # ML artifacts
-models/*.joblib
+# models/*.joblib
 models/*.pt
-models/*.pkl
+# models/*.pkl
 models/results.json
 mlruns/
 mlartifacts/
@@ -26,7 +26,7 @@ mlflow.db
 
 # Data
 /data/
-data/raw/*.csv
+# data/raw/*.csv
 data/raw/*.parquet
 data/processed/
 
