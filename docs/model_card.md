@@ -1,6 +1,20 @@
-# Model Card — Churn Prediction MLP
+# Model Card — Telco Customer Churn Prediction
 
-## Descricao
+## Model Details
+
+| Campo | Valor |
+|-------|-------|
+| **Nome** | ChurnMLP |
+| **Versão** | 1.0.0 |
+| **Tipo** | Multi-Layer Perceptron (PyTorch) |
+| **Arquitetura** | Linear(input→64) → BN → ReLU → Dropout(0.3) → Linear(64→32) → BN → ReLU → Dropout(0.3) → Linear(32→16) → BN → ReLU → Dropout(0.3) → Linear(16→1) |
+| **Loss** | BCEWithLogitsLoss com pos_weight (balanceamento de classe) |
+| **Otimizador** | Adam (lr=1e-3, weight_decay=1e-4) + ReduceLROnPlateau |
+| **Treinamento** | Early stopping (patience=15, baseado em val_loss) |
+| **Seed** | 42 (reprodutibilidade total) |
+| **Desenvolvido por** | FIAP 10MLET — Tech Challenge Fase 1 |
+
+## Uso Pretendido
 
 Rede neural MLP (Multi-Layer Perceptron) treinada com PyTorch para prever a probabilidade de churn de clientes de uma operadora de telecomunicacoes. O modelo e parte de um pipeline end-to-end que inclui engenharia de features, treinamento, comparacao com baselines e servico via API REST.
 
@@ -8,7 +22,7 @@ Rede neural MLP (Multi-Layer Perceptron) treinada com PyTorch para prever a prob
 
 ---
 
-## Dados de Treinamento
+**Usuários pretendidos:** Equipe de CRM/retenção, cientistas de dados da operadora.
 
 | Atributo | Valor |
 | --- | --- |
@@ -139,7 +153,12 @@ Input (59)
 
 ---
 
-## Uso Pretendido
+**Trade-off de custo:**
+- Falso Negativo (churn não detectado): alto custo — cliente perdido sem intervenção.
+- Falso Positivo (churn previsto erroneamente): baixo custo — ação de retenção desnecessária.
+- Recomenda-se threshold abaixo de 0.5 para maximizar recall em contextos onde o custo de FN é dominante.
+
+## Limitações
 
 - **Aplicacao:** Ranquear clientes por risco de cancelamento para acoes proativas de retencao.
 - **Usuarios:** Equipe de Customer Success; analistas de CRM.
@@ -149,7 +168,7 @@ Input (59)
 
 ---
 
-## Limitacoes Conhecidas
+## Considerações de Viés e Fairness
 
 - Treinado com dados de uma unica operadora norte-americana — pode nao generalizar para outros contextos, regioes ou perfis de clientes.
 - Nao inclui variaveis de satisfacao do cliente (NPS, reclamacoes, interacoes com suporte).
@@ -173,7 +192,7 @@ Input (59)
 
 ---
 
-## Vies e Fairness
+## Implantação
 
 - **Atributos sensiveis presentes nos dados:** `gender` (Male/Female), `senior_citizen` (Yes/No).
 - O modelo foi treinado sem exclusao desses atributos; e necessario avaliar disparidade de performance por grupo antes de uso em producao.
@@ -209,7 +228,7 @@ Input (59)
 
 ---
 
-## Responsaveis
+## Manutenção
 
 | Atributo | Valor |
 | --- | --- |
