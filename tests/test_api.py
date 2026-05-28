@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+import src.api.app as app_module
 from src.api.app import app
-from src.models.mlp import MLP
+from src.models.mlp import ChurnMLP
 
 VALID_PAYLOAD = {
     "senior_citizen": 0,
@@ -32,25 +33,27 @@ VALID_PAYLOAD = {
 def client():
     from unittest.mock import MagicMock
 
-    mock_preprocessor = MagicMock()
-    mock_preprocessor.transform.return_value = np.zeros((1, 30), dtype=np.float32)
+    mock_pipeline = MagicMock()
+    mock_pipeline.transform.return_value = np.zeros((1, 30), dtype=np.float32)
 
-    mock_model = MLP(input_dim=30, hidden_dims=[32, 16])
+    mock_model = ChurnMLP(input_dim=30, hidden_dims=[32, 16])
     mock_model.eval()
 
     with TestClient(app) as c:
-        app.state.preprocessor = mock_preprocessor
-        app.state.model = mock_model
-        app.state.model_loaded = True
+        # A API usa _state (dict modular), não app.state
+        app_module._state["pipeline"] = mock_pipeline
+        app_module._state["model"] = mock_model
         yield c
 
-    app.state.model_loaded = False
+    app_module._state["pipeline"] = None
+    app_module._state["model"] = None
 
 
 @pytest.fixture
 def client_no_model():
     with TestClient(app) as c:
-        app.state.model_loaded = False
+        app_module._state["pipeline"] = None
+        app_module._state["model"] = None
         yield c
 
 
