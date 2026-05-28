@@ -1,25 +1,28 @@
-.PHONY: install lint test train run clean
+.PHONY: install lint lint-fix format test train run mlflow clean
 
 install:
 	uv sync --extra dev
 
 lint:
-	uv run ruff check src/ tests/
+	ruff check src/ tests/ train.py
 
 lint-fix:
-	uv run ruff check --fix src/ tests/
+	ruff check --fix src/ tests/ train.py
+
+format:
+	ruff format src/ tests/ train.py
 
 test:
-	uv run pytest tests/ -v --cov=src --cov-report=term-missing
+	pytest tests/ -v
 
 train:
-	uv run python -m src.training.train
+	python train.py
 
 run:
-	uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
+	uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
 
-mlflow-ui:
-	uv run mlflow ui --host 0.0.0.0 --port 5000
+mlflow:
+	mlflow ui --host 0.0.0.0 --port 5000
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
