@@ -10,55 +10,70 @@ import pandas as pd
 import torch
 from fastapi import Depends, FastAPI, HTTPException, Request
 
-from src.api.schemas import ClienteInput, HealthOutput, PredictionOutput
-from src.models.mlp import MLP
+from src.api.schemas import (
+    BatchPredictionOutput,
+    ClienteInput,
+    HealthOutput,
+    PredictionOutput,
+)
+from src.models.mlp import ChurnMLP, predict_proba
 from src.utils.config import settings
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+_state: dict = {"pipeline": None, "model": None, "input_dim": None}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     models_dir = Path(settings.models_dir)
-    app.state.model_loaded = False
-    app.state.preprocessor = None
-    app.state.model = None
-
-    logger.info("Loading model artifacts from {dir}", dir=models_dir)
+    logger.info("Loading model artifacts from {}", str(models_dir))
     try:
-        preprocessor = joblib.load(models_dir / "preprocessor.joblib")
-        app.state.preprocessor = preprocessor
+        pipeline_path = models_dir / "preprocessor.joblib"
+        legacy_path = models_dir / "preprocessing_pipeline.joblib"
+        if pipeline_path.exists():
+            _state["pipeline"] = joblib.load(pipeline_path)
+        elif legacy_path.exists():
+            _state["pipeline"] = joblib.load(legacy_path)
+        else:
+            raise FileNotFoundError(f"No pipeline found in {models_dir}")
 
         cfg_path = models_dir / "model_config.json"
         if cfg_path.exists():
             with open(cfg_path) as f:
-                input_dim = json.load(f)["input_dim"]
+                cfg = json.load(f)
+            input_dim = cfg.get("input_dim")
+            hidden_dims = cfg.get("hidden_dims", [64, 32, 16])
         else:
-            # fallback para modelos treinados antes da persistência de metadata
             logger.warning("model_config.json ausente — inferindo input_dim via preprocessor")
-            dummy = {
-                "tenure": [0], "monthly_charges": [0.0], "total_charges": [0.0],
-                "senior_citizen": [0], "gender": ["Male"], "partner": ["No"],
-                "dependents": ["No"], "phone_service": ["No"], "multiple_lines": ["No"],
-                "internet_service": ["No"], "online_security": ["No internet service"],
-                "online_backup": ["No internet service"], "device_protection": ["No internet service"],
-                "tech_support": ["No internet service"], "streaming_tv": ["No internet service"],
-                "streaming_movies": ["No internet service"], "contract": ["Month-to-month"],
-                "paperless_billing": ["No"], "payment_method": ["Mailed check"],
-            }
-            input_dim = preprocessor.transform(pd.DataFrame(dummy)).shape[1]
+            input_dim = None
+            hidden_dims = [64, 32, 16]
 
-        model = MLP(input_dim=input_dim, hidden_dims=[128, 64, 32])
-        model.load_state_dict(
-            torch.load(models_dir / "mlp_weights.pt", map_location="cpu", weights_only=True)
-        )
+        pt_path = models_dir / "mlp_model.pt"
+        legacy_pt = models_dir / "mlp_weights.pt"
+        if pt_path.exists():
+            ckpt = torch.load(pt_path, map_location="cpu", weights_only=True)
+            input_dim = ckpt.get("input_dim", input_dim)
+            hidden_dims = ckpt.get("hidden_dims", hidden_dims)
+            model = ChurnMLP(input_dim=input_dim, hidden_dims=hidden_dims)
+            model.load_state_dict(ckpt["state_dict"])
+        elif legacy_pt.exists():
+            state_dict = torch.load(legacy_pt, map_location="cpu", weights_only=True)
+            if input_dim is None:
+                raise RuntimeError("input_dim desconhecido e model_config.json ausente")
+            model = ChurnMLP(input_dim=input_dim, hidden_dims=hidden_dims)
+            model.load_state_dict(state_dict)
+        else:
+            raise FileNotFoundError(f"No model .pt found in {models_dir}")
+
         model.eval()
-        app.state.model = model
-        app.state.model_loaded = True
-        logger.info("Model ready (input_dim={dim})", dim=input_dim)
+        _state["model"] = model
+        _state["input_dim"] = input_dim
+        logger.info("Model ready — input_dim={}", input_dim)
+
     except Exception as exc:
-        logger.error("Failed to load model artifacts: {error}", error=exc)
+        logger.error("Failed to load model artifacts: {}", exc)
 
     yield
     logger.info("API shutting down.")
@@ -66,72 +81,127 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Churn Prediction API",
-    description="Previsao de churn para operadora de telecomunicacoes — FIAP Tech Challenge Fase 1",
+    description="Previsão de churn para operadora de telecomunicações — FIAP Tech Challenge Fase 1",
     version=settings.api_version,
     lifespan=lifespan,
 )
 
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start = time.time()
+async def latency_middleware(request: Request, call_next):
+    start = time.perf_counter()
     response = await call_next(request)
-    latency_ms = round((time.time() - start) * 1000, 2)
+    latency_ms = (time.perf_counter() - start) * 1000
     logger.info(
-        "method={method} path={path} status={status} latency_ms={latency}",
-        method=request.method,
-        path=request.url.path,
-        status=response.status_code,
-        latency=latency_ms,
+        "method={} path={} status={} latency_ms={:.2f}",
+        request.method, request.url.path, response.status_code, latency_ms,
     )
+    response.headers["X-Latency-Ms"] = f"{latency_ms:.2f}"
     return response
 
 
 def _require_model(request: Request) -> Any:
-    if not getattr(request.app.state, "model_loaded", False):
+    if _state["model"] is None or _state["pipeline"] is None:
         raise HTTPException(status_code=503, detail="Model not available")
-    return request.app.state
+    return _state
 
 
 ModelState = Annotated[Any, Depends(_require_model)]
 
 
+def _customer_to_df(cliente: ClienteInput) -> pd.DataFrame:
+    """Converte ClienteInput para DataFrame compatível com o preprocessor."""
+    return pd.DataFrame([{
+        "tenure": cliente.tenure,
+        "monthly_charges": cliente.monthly_charges,
+        "total_charges": cliente.total_charges,
+        "senior_citizen": cliente.senior_citizen,
+        "gender": cliente.gender,
+        "partner": cliente.partner,
+        "dependents": cliente.dependents,
+        "phone_service": cliente.phone_service,
+        "multiple_lines": cliente.multiple_lines,
+        "internet_service": cliente.internet_service,
+        "online_security": cliente.online_security,
+        "online_backup": cliente.online_backup,
+        "device_protection": cliente.device_protection,
+        "tech_support": cliente.tech_support,
+        "streaming_tv": cliente.streaming_tv,
+        "streaming_movies": cliente.streaming_movies,
+        "contract": cliente.contract,
+        "paperless_billing": cliente.paperless_billing,
+        "payment_method": cliente.payment_method,
+    }])
+
+
+def _risk_level(prob: float) -> str:
+    if prob >= 0.7:
+        return "high"
+    if prob >= 0.4:
+        return "medium"
+    return "low"
+
+
 @app.get("/health", response_model=HealthOutput, tags=["Monitoring"])
-def health(request: Request):
+async def health():
     return HealthOutput(
         status="ok",
-        model_loaded=getattr(request.app.state, "model_loaded", False),
+        model_loaded=_state["model"] is not None,
         version=settings.api_version,
     )
 
 
+@app.get("/ready", tags=["Monitoring"], summary="Readiness check")
+async def ready():
+    if _state["pipeline"] is None or _state["model"] is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    return {"status": "ready"}
+
+
 @app.post("/predict", response_model=PredictionOutput, tags=["Inference"])
-def predict(cliente: ClienteInput, bundle: ModelState):
+async def predict(cliente: ClienteInput, bundle: ModelState):
     try:
-        df = pd.DataFrame([cliente.model_dump()])
-        X = bundle.preprocessor.transform(df).astype(np.float32)
-        X_tensor = torch.FloatTensor(X)
-
-        with torch.no_grad():
-            logit = bundle.model(X_tensor)
-            prob = torch.sigmoid(logit).item()
-
-        prediction = int(prob >= 0.5)
-        risk_level = "high" if prob >= 0.7 else "medium" if prob >= 0.4 else "low"
-
-        logger.info(
-            "prediction: churn_prob={prob} pred={pred} risk={risk}",
-            prob=round(prob, 4),
-            pred=prediction,
-            risk=risk_level,
-        )
-
-        return PredictionOutput(
-            churn_probability=round(prob, 4),
-            prediction=prediction,
-            risk_level=risk_level,
-        )
-
+        X = bundle["pipeline"].transform(_customer_to_df(cliente)).astype(np.float32)
     except Exception as exc:
-        logger.error("Prediction error: {error}", error=exc)
-        raise HTTPException(status_code=500, detail="Internal prediction error") from exc
+        logger.error("Preprocessing failed: {}", exc)
+        raise HTTPException(status_code=422, detail=f"Preprocessing error: {exc}") from exc
+
+    prob = float(predict_proba(bundle["model"], X)[0])
+    prediction = int(prob >= 0.5)
+    risk = _risk_level(prob)
+    logger.info("churn_prob={:.4f} pred={} risk={}", prob, prediction, risk)
+
+    return PredictionOutput(
+        churn_probability=round(prob, 4),
+        prediction=prediction,
+        risk_level=risk,
+    )
+
+
+@app.post("/predict-batch", response_model=BatchPredictionOutput, tags=["Inference"])
+async def predict_batch(
+    clientes: Annotated[list[ClienteInput], ...],
+    bundle: ModelState,
+):
+    if len(clientes) == 0 or len(clientes) > 1000:
+        raise HTTPException(status_code=422, detail="Batch size must be between 1 and 1000")
+
+    try:
+        df = pd.concat([_customer_to_df(c) for c in clientes], ignore_index=True)
+        X = bundle["pipeline"].transform(df).astype(np.float32)
+    except Exception as exc:
+        logger.error("Batch preprocessing failed: {}", exc)
+        raise HTTPException(status_code=422, detail=f"Preprocessing error: {exc}") from exc
+
+    probs = predict_proba(bundle["model"], X)
+    logger.info("batch_size={}", len(clientes))
+
+    predictions = [
+        PredictionOutput(
+            churn_probability=round(float(p), 4),
+            prediction=int(float(p) >= 0.5),
+            risk_level=_risk_level(float(p)),
+        )
+        for p in probs
+    ]
+    return BatchPredictionOutput(predictions=predictions, count=len(predictions))
