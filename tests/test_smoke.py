@@ -1,8 +1,7 @@
-"""Smoke tests: pipeline serialization, MLP training loop, baseline fit/predict."""
+"""Smoke tests: pipeline, MLP e baselines — verificação rápida de integridade."""
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.data.preprocessing import build_preprocessing_pipeline
 from src.models.baseline import evaluate_model, get_baselines
@@ -11,37 +10,30 @@ from src.models.mlp import ChurnMLP, predict_proba, train_mlp
 
 def _make_dummy_df(n: int = 80) -> pd.DataFrame:
     rng = np.random.default_rng(0)
-    return pd.DataFrame(
-        {
-            "Tenure Months": rng.integers(0, 72, n),
-            "Monthly Charges": rng.uniform(20, 120, n),
-            "Total Charges": rng.uniform(0, 8000, n),
-            "Senior Citizen": rng.choice(["Yes", "No"], n),
-            "Partner": rng.choice(["Yes", "No"], n),
-            "Dependents": rng.choice(["Yes", "No"], n),
-            "Phone Service": rng.choice(["Yes", "No"], n),
-            "Paperless Billing": rng.choice(["Yes", "No"], n),
-            "Gender": rng.choice(["Male", "Female"], n),
-            "Multiple Lines": rng.choice(["Yes", "No", "No phone service"], n),
-            "Internet Service": rng.choice(["DSL", "Fiber optic", "No"], n),
-            "Online Security": rng.choice(["Yes", "No", "No internet service"], n),
-            "Online Backup": rng.choice(["Yes", "No", "No internet service"], n),
-            "Device Protection": rng.choice(["Yes", "No", "No internet service"], n),
-            "Tech Support": rng.choice(["Yes", "No", "No internet service"], n),
-            "Streaming TV": rng.choice(["Yes", "No", "No internet service"], n),
-            "Streaming Movies": rng.choice(["Yes", "No", "No internet service"], n),
-            "Contract": rng.choice(["Month-to-month", "One year", "Two year"], n),
-            "Payment Method": rng.choice(
-                [
-                    "Electronic check",
-                    "Mailed check",
-                    "Bank transfer (automatic)",
-                    "Credit card (automatic)",
-                ],
-                n,
-            ),
-        }
-    )
+    return pd.DataFrame({
+        "Tenure Months": rng.integers(0, 72, n),
+        "Monthly Charges": rng.uniform(20, 120, n),
+        "Total Charges": rng.uniform(0, 8000, n).astype(str),
+        "Senior Citizen": rng.choice(["Yes", "No"], n),
+        "Partner": rng.choice(["Yes", "No"], n),
+        "Dependents": rng.choice(["Yes", "No"], n),
+        "Phone Service": rng.choice(["Yes", "No"], n),
+        "Paperless Billing": rng.choice(["Yes", "No"], n),
+        "Gender": rng.choice(["Male", "Female"], n),
+        "Multiple Lines": rng.choice(["Yes", "No", "No phone service"], n),
+        "Internet Service": rng.choice(["DSL", "Fiber optic", "No"], n),
+        "Online Security": rng.choice(["Yes", "No", "No internet service"], n),
+        "Online Backup": rng.choice(["Yes", "No", "No internet service"], n),
+        "Device Protection": rng.choice(["Yes", "No", "No internet service"], n),
+        "Tech Support": rng.choice(["Yes", "No", "No internet service"], n),
+        "Streaming TV": rng.choice(["Yes", "No", "No internet service"], n),
+        "Streaming Movies": rng.choice(["Yes", "No", "No internet service"], n),
+        "Contract": rng.choice(["Month-to-month", "One year", "Two year"], n),
+        "Payment Method": rng.choice([
+            "Electronic check", "Mailed check",
+            "Bank transfer (automatic)", "Credit card (automatic)",
+        ], n),
+    })
 
 
 def test_pipeline_fit_transform():
@@ -54,13 +46,13 @@ def test_pipeline_fit_transform():
     assert not np.isnan(X_t).any(), "NaNs found after preprocessing"
 
 
-def test_pipeline_fit_transform_shape_stable():
-    X = _make_dummy_df(n=100)
+def test_pipeline_shape_stable():
+    X_train = _make_dummy_df(n=100)
     X_val = _make_dummy_df(n=20)
-    y = np.random.randint(0, 2, len(X))
+    y = np.random.randint(0, 2, len(X_train))
     pipeline = build_preprocessing_pipeline()
-    pipeline.fit(X, y)
-    assert pipeline.transform(X).shape[1] == pipeline.transform(X_val).shape[1]
+    pipeline.fit(X_train, y)
+    assert pipeline.transform(X_train).shape[1] == pipeline.transform(X_val).shape[1]
 
 
 def test_mlp_smoke():
@@ -69,14 +61,20 @@ def test_mlp_smoke():
     X = rng.standard_normal((n, d)).astype(np.float32)
     y = rng.integers(0, 2, n).astype(np.float32)
 
-    model, history = train_mlp(
-        X[:80], y[:80], X[80:100], y[80:100], max_epochs=5, patience=3
-    )
+    model, history = train_mlp(X[:80], y[:80], X[80:100], y[80:100], max_epochs=5, patience=3)
 
     assert len(history["train_loss"]) > 0
     probs = predict_proba(model, X)
     assert probs.shape == (n,)
     assert (probs >= 0).all() and (probs <= 1).all()
+
+
+def test_churn_mlp_forward_shape():
+    model = ChurnMLP(input_dim=20, hidden_dims=[32, 16])
+    import torch
+    X = torch.randn(10, 20)
+    out = model(X)
+    assert out.shape == (10,)
 
 
 def test_baselines_fit_predict():
