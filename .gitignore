@@ -23,9 +23,9 @@ mlruns/
 mlartifacts/
 
 # Data
-data/raw/*.csv
-data/raw/*.parquet
-data/processed/
+# data/raw/*.csv
+# data/raw/*.parquet
+# data/processed/
 
 # Jupyter
 .ipynb_checkpoints/
