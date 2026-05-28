@@ -25,10 +25,9 @@ mlartifacts/
 mlflow.db
 
 # Data
-/data/
 # data/raw/*.csv
-data/raw/*.parquet
-data/processed/
+# data/raw/*.parquet
+# data/processed/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -59,6 +58,10 @@ htmlcov/
 
 # Logs
 logs/
+mlflow.db
+notebooks/logs/
+churn_prediction.egg-info/
+mlruns/
 
 # Claude
 CLAUDE.md
