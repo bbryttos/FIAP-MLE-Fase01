@@ -2,7 +2,7 @@
 
 import os
 
-import pandera as pa
+import pandera.pandas as pa
 import pytest
 
 from src.data.preprocessing import (
@@ -16,7 +16,7 @@ DATA_PATH = os.getenv("DATA_PATH", "data/raw/Telco_customer_churn.csv")
 
 RAW_SCHEMA = pa.DataFrameSchema(
     {
-        "tenure": pa.Column(float, checks=pa.Check.ge(0), nullable=False),
+        "tenure": pa.Column(int, checks=pa.Check.ge(0), nullable=False),
         "monthly_charges": pa.Column(float, checks=pa.Check.ge(0), nullable=False),
     }
 )
