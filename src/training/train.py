@@ -139,7 +139,7 @@ def main():
             MODELS_DIR / "mlp_weights.pt",
         )
         with open(MODELS_DIR / "model_config.json", "w") as f:
-            json.dump({"input_dim": X_train_arr.shape[1]}, f)
+            json.dump({"input_dim": X_train_arr.shape[1], "hidden_dims": MLP_PARAMS["hidden_dims"]}, f)
         logger.info("Saved model_config.json (input_dim=%d)", X_train_arr.shape[1])
 
         mlp_f1 = mlp_res["metrics"]["f1"]
