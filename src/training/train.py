@@ -1,5 +1,4 @@
 import json
-import logging
 from pathlib import Path
 
 import joblib
@@ -17,12 +16,9 @@ from src.data.preprocessing import (
 from src.data.schema import validate_raw
 from src.models.baseline import build_baselines, compute_metrics, train_baseline
 from src.models.mlp import MLPTrainer
+from src.utils.logger import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 RANDOM_STATE = 42
 MODELS_DIR = Path("models")
@@ -30,6 +26,7 @@ MODELS_DIR.mkdir(exist_ok=True)
 
 DATA_PATH = "data/raw/Telco_customer_churn.csv"
 MLFLOW_EXPERIMENT = "churn-prediction"
+MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 
 MLP_PARAMS = {
     "hidden_dims": [128, 64, 32],
@@ -72,7 +69,7 @@ def train_mlp(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) ->
         mlflow.pytorch.log_model(trainer.model, "model")
 
         logger.info(
-            "MLP — Test F1: %.4f | AUC: %.4f",
+            "MLP — Test F1: {:.4f} | AUC: {:.4f}",
             metrics["f1"], metrics.get("auc_roc", 0),
         )
 
@@ -80,9 +77,10 @@ def train_mlp(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) ->
 
 
 def main():
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
 
-    logger.info("Loading and validating data from %s", DATA_PATH)
+    logger.info("Loading and validating data from {}", DATA_PATH)
     df_raw = load_data(DATA_PATH)
     validate_raw(df_raw)
 
@@ -95,7 +93,7 @@ def main():
     X_val_arr = pipeline.transform(X_val_df)
     X_test_arr = pipeline.transform(X_test_df)
     joblib.dump(pipeline, MODELS_DIR / "preprocessor.joblib")
-    logger.info("Full pipeline fitted. Feature dim: %d", X_train_arr.shape[1])
+    logger.info("Full pipeline fitted. Feature dim: {}", X_train_arr.shape[1])
 
     results: dict = {}
 
@@ -124,7 +122,7 @@ def main():
         if best_baseline_pipeline:
             joblib.dump(best_baseline_pipeline, MODELS_DIR / "best_baseline.joblib")
             logger.info(
-                "Best baseline: %s (F1=%.4f)", best_baseline_name, best_baseline_f1
+                "Best baseline: {} (F1={:.4f})", best_baseline_name, best_baseline_f1
             )
             mlflow.log_param("best_baseline", best_baseline_name)
             mlflow.log_metric("best_baseline_f1", best_baseline_f1)
@@ -139,12 +137,16 @@ def main():
         results["mlp_pytorch"] = mlp_res["metrics"]
 
         torch.save(
-            mlp_res["trainer"].model.state_dict(),
-            MODELS_DIR / "mlp_weights.pt",
+            {
+                "input_dim": X_train_arr.shape[1],
+                "hidden_dims": MLP_PARAMS["hidden_dims"],
+                "state_dict": mlp_res["trainer"].model.state_dict(),
+            },
+            MODELS_DIR / "mlp_model.pt",
         )
         with open(MODELS_DIR / "model_config.json", "w") as f:
-            json.dump({"input_dim": X_train_arr.shape[1]}, f)
-        logger.info("Saved model_config.json (input_dim=%d)", X_train_arr.shape[1])
+            json.dump({"input_dim": X_train_arr.shape[1], "hidden_dims": MLP_PARAMS["hidden_dims"]}, f)
+        logger.info("Saved mlp_model.pt and model_config.json (input_dim={})", X_train_arr.shape[1])
 
         mlp_f1 = mlp_res["metrics"]["f1"]
         mlflow.log_metric(
@@ -154,7 +156,7 @@ def main():
     logger.info("\nResults summary:")
     for name, metrics in results.items():
         logger.info(
-            "  %-28s F1=%.4f  AUC=%.4f  Precision=%.4f  Recall=%.4f",
+            "  {:<28} F1={:.4f}  AUC={:.4f}  Precision={:.4f}  Recall={:.4f}",
             name,
             metrics["f1"],
             metrics.get("auc_roc", 0),
