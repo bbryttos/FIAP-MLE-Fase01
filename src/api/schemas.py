@@ -64,6 +64,11 @@ class PredictionOutput(BaseModel):
     risk_level: Literal["low", "medium", "high"]
 
 
+class BatchPredictionOutput(BaseModel):
+    predictions: list[PredictionOutput]
+    count: int
+
+
 class HealthOutput(BaseModel):
     status: str
     model_loaded: bool
