@@ -30,9 +30,8 @@ async def lifespan(app: FastAPI):
     models_dir = Path(settings.models_dir)
     logger.info("Loading model artifacts from {}", str(models_dir))
     try:
-        # Tenta pipeline novo (build_preprocessing_pipeline) depois o legado
-        pipeline_path = models_dir / "preprocessing_pipeline.joblib"
-        legacy_path = models_dir / "preprocessor.joblib"
+        pipeline_path = models_dir / "preprocessor.joblib"
+        legacy_path = models_dir / "preprocessing_pipeline.joblib"
         if pipeline_path.exists():
             _state["pipeline"] = joblib.load(pipeline_path)
         elif legacy_path.exists():
@@ -51,7 +50,6 @@ async def lifespan(app: FastAPI):
             input_dim = None
             hidden_dims = [64, 32, 16]
 
-        # Carrega checkpoint (novo formato .pt com state_dict + metadata)
         pt_path = models_dir / "mlp_model.pt"
         legacy_pt = models_dir / "mlp_weights.pt"
         if pt_path.exists():
