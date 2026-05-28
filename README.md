@@ -116,24 +116,34 @@ Telco_customer_churn.xlsx
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "gender": "Male", "senior_citizen": "No", "partner": "Yes",
-    "dependents": "No", "tenure_months": 12, "phone_service": "Yes",
-    "multiple_lines": "No", "internet_service": "DSL",
-    "online_security": "No", "online_backup": "Yes",
-    "device_protection": "No", "tech_support": "No",
-    "streaming_tv": "No", "streaming_movies": "No",
-    "contract": "Month-to-month", "paperless_billing": "Yes",
-    "payment_method": "Electronic check",
-    "monthly_charges": 56.95, "total_charges": 683.40
+    "senior_citizen": 0,
+    "tenure": 12,
+    "monthly_charges": 65.5,
+    "total_charges": 786.0,
+    "gender": "Male",
+    "partner": "Yes",
+    "dependents": "No",
+    "phone_service": "Yes",
+    "multiple_lines": "No",
+    "internet_service": "Fiber optic",
+    "online_security": "No",
+    "online_backup": "Yes",
+    "device_protection": "No",
+    "tech_support": "No",
+    "streaming_tv": "No",
+    "streaming_movies": "No",
+    "contract": "Month-to-month",
+    "paperless_billing": "Yes",
+    "payment_method": "Electronic check"
   }'
 ```
 
-Resposta:
+### Exemplo de resposta
 ```json
 {
-  "churn_probability": 0.73,
-  "churn_prediction": true,
-  "threshold": 0.5
+  "churn_probability": 0.72,
+  "prediction": 1,
+  "risk_level": "high"
 }
 ```
 
@@ -176,11 +186,11 @@ Resposta:
 ## Etapas do Projeto
 
 | Etapa | Foco | Status |
-|-------|------|--------|
-| 1 | EDA + ML Canvas + Baselines + MLflow | Em andamento |
-| 2 | MLP PyTorch + comparação de modelos | Pendente |
-| 3 | Refatoração + FastAPI + testes + Makefile | Pendente |
-| 4 | Model Card + README + deploy | Pendente |
+|---|---|---|
+| 1 | EDA + Baselines + MLflow | ✅ Concluída |
+| 2 | MLP PyTorch + comparação de modelos | ✅ Concluída |
+| 3 | Refatoração + FastAPI + testes + Makefile | ✅ Concluída |
+| 4 | Model Card + README + vídeo STAR + deploy | ✅ Concluída |
 
 ---
 
