@@ -82,7 +82,7 @@ def train_mlp(
     X_vl = torch.tensor(X_val, dtype=torch.float32).to(device)
     y_vl = torch.tensor(y_val, dtype=torch.float32).to(device)
 
-    loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=batch_size, shuffle=True)
+    loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=batch_size, shuffle=True, drop_last=True)
 
     model = ChurnMLP(X_train.shape[1], hidden_dims, dropout).to(device)
 
