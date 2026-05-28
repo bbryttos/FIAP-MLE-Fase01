@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Caminhos — sempre relativos à raiz do projeto
     model_path: Path = Field(default=PROJECT_ROOT / "models" / "mlp_churn.pt")
     data_path: Path = Field(
-        default=PROJECT_ROOT / "data" / "raw" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
+        default=PROJECT_ROOT / "data" / "raw" / "Telco_customer_churn.csv"
     )
     log_path: Path = Field(default=PROJECT_ROOT / "logs" / "churn_prediction.log")
 
@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     # API
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
+    api_version: str = Field(default="1.0.0")
+    models_dir: str = Field(default="models")
 
     # Logging
     log_level: str = Field(default="INFO")

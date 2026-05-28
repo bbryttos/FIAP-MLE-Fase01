@@ -7,139 +7,141 @@ from torch.utils.data import DataLoader, TensorDataset
 
 logger = logging.getLogger(__name__)
 
-SEED = 42
-torch.manual_seed(SEED)
 
-
-class ChurnMLP(nn.Module):
+class MLP(nn.Module):
     def __init__(
         self,
         input_dim: int,
         hidden_dims: list[int] | None = None,
-        dropout: float = 0.3,
+        dropout_rate: float = 0.3,
+        use_batch_norm: bool = True,
     ):
         super().__init__()
         if hidden_dims is None:
-            hidden_dims = [64, 32, 16]
+            hidden_dims = [128, 64, 32]
 
-        layers: list[nn.Module] = []
-        prev_dim = input_dim
-        for dim in hidden_dims:
-            layers += [
-                nn.Linear(prev_dim, dim),
-                nn.BatchNorm1d(dim),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-            ]
-            prev_dim = dim
-        layers.append(nn.Linear(prev_dim, 1))
+        layers = []
+        in_dim = input_dim
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(in_dim, hidden_dim))
+            if use_batch_norm:
+                layers.append(nn.BatchNorm1d(hidden_dim))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout_rate))
+            in_dim = hidden_dim
+        layers.append(nn.Linear(in_dim, 1))
+
         self.network = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.network(x).squeeze(1)
 
 
-class EarlyStopping:
-    def __init__(self, patience: int = 10, min_delta: float = 1e-4):
+class MLPTrainer:
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dims: list[int] | None = None,
+        dropout_rate: float = 0.3,
+        use_batch_norm: bool = True,
+        lr: float = 1e-3,
+        batch_size: int = 64,
+        max_epochs: int = 100,
+        patience: int = 10,
+        device: str | None = None,
+        random_state: int = 42,
+    ):
+        torch.manual_seed(random_state)
+        np.random.seed(random_state)
+
+        self.batch_size = batch_size
+        self.max_epochs = max_epochs
         self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_loss = float("inf")
-        self.best_state: dict | None = None
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
-    def step(self, val_loss: float, model: nn.Module) -> bool:
-        if val_loss < self.best_loss - self.min_delta:
-            self.best_loss = val_loss
-            self.counter = 0
-            self.best_state = {k: v.clone() for k, v in model.state_dict().items()}
-        else:
-            self.counter += 1
-        return self.counter >= self.patience
+        self.model = MLP(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            dropout_rate=dropout_rate,
+            use_batch_norm=use_batch_norm,
+        ).to(self.device)
 
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        self.criterion = nn.BCEWithLogitsLoss()
+        self.history: dict[str, list] = {"train_loss": [], "val_loss": []}
 
-def train_mlp(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    X_val: np.ndarray,
-    y_val: np.ndarray,
-    hidden_dims: list[int] | None = None,
-    lr: float = 1e-3,
-    batch_size: int = 64,
-    max_epochs: int = 200,
-    dropout: float = 0.3,
-    patience: int = 15,
-    device: str = "cpu",
-) -> tuple["ChurnMLP", dict[str, list[float]]]:
-    if hidden_dims is None:
-        hidden_dims = [64, 32, 16]
+    def _to_loader(self, X: np.ndarray, y: np.ndarray, shuffle: bool = True) -> DataLoader:
+        X_t = torch.FloatTensor(X).to(self.device)
+        y_t = torch.FloatTensor(y).to(self.device)
+        drop = shuffle  # drop last incomplete batch only during training
+        return DataLoader(TensorDataset(X_t, y_t), batch_size=self.batch_size, shuffle=shuffle, drop_last=drop)
 
-    X_tr = torch.tensor(X_train, dtype=torch.float32).to(device)
-    y_tr = torch.tensor(y_train, dtype=torch.float32).to(device)
-    X_vl = torch.tensor(X_val, dtype=torch.float32).to(device)
-    y_vl = torch.tensor(y_val, dtype=torch.float32).to(device)
+    def fit(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray,
+        y_val: np.ndarray,
+    ) -> "MLPTrainer":
+        train_loader = self._to_loader(X_train, y_train, shuffle=True)
+        val_loader = self._to_loader(X_val, y_val, shuffle=False)
 
-    loader = DataLoader(
-        TensorDataset(X_tr, y_tr), batch_size=batch_size, shuffle=True
-    )
+        best_val_loss = float("inf")
+        epochs_no_improve = 0
+        best_weights = None
 
-    model = ChurnMLP(X_train.shape[1], hidden_dims, dropout).to(device)
+        for epoch in range(1, self.max_epochs + 1):
+            self.model.train()
+            train_loss = 0.0
+            for X_batch, y_batch in train_loader:
+                self.optimizer.zero_grad()
+                logits = self.model(X_batch)
+                loss = self.criterion(logits, y_batch)
+                loss.backward()
+                self.optimizer.step()
+                train_loss += loss.item() * len(X_batch)
+            train_loss /= len(X_train)
 
-    # Weight the positive class to handle imbalance
-    pos_weight = torch.tensor(
-        [(y_train == 0).sum() / max((y_train == 1).sum(), 1)], dtype=torch.float32
-    ).to(device)
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=5, factor=0.5
-    )
-    stopper = EarlyStopping(patience=patience)
+            val_loss = self._eval_loss(val_loader, len(X_val))
+            self.history["train_loss"].append(train_loss)
+            self.history["val_loss"].append(val_loss)
 
-    history: dict[str, list[float]] = {"train_loss": [], "val_loss": []}
+            if epoch % 10 == 0:
+                logger.info(
+                    "Epoch %3d | Train Loss: %.4f | Val Loss: %.4f",
+                    epoch, train_loss, val_loss,
+                )
 
-    for epoch in range(1, max_epochs + 1):
-        model.train()
-        train_loss = 0.0
-        for xb, yb in loader:
-            optimizer.zero_grad()
-            loss = criterion(model(xb), yb)
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item() * len(xb)
-        train_loss /= len(X_train)
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+                best_weights = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+            else:
+                epochs_no_improve += 1
+                if epochs_no_improve >= self.patience:
+                    logger.info("Early stopping at epoch %d (best val_loss=%.4f)", epoch, best_val_loss)
+                    break
 
-        model.eval()
+        if best_weights:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_weights.items()})
+        return self
+
+    def _eval_loss(self, loader: DataLoader, n: int) -> float:
+        self.model.eval()
+        total_loss = 0.0
         with torch.no_grad():
-            val_loss = criterion(model(X_vl), y_vl).item()
+            for X_batch, y_batch in loader:
+                logits = self.model(X_batch)
+                total_loss += self.criterion(logits, y_batch).item() * len(X_batch)
+        return total_loss / n
 
-        scheduler.step(val_loss)
-        history["train_loss"].append(train_loss)
-        history["val_loss"].append(val_loss)
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        self.model.eval()
+        X_t = torch.FloatTensor(X).to(self.device)
+        with torch.no_grad():
+            logits = self.model(X_t)
+            probs = torch.sigmoid(logits).cpu().numpy()
+        return probs
 
-        if epoch % 20 == 0:
-            logger.info(
-                "Epoch %d/%d — train_loss=%.4f val_loss=%.4f",
-                epoch,
-                max_epochs,
-                train_loss,
-                val_loss,
-            )
-
-        if stopper.step(val_loss, model):
-            logger.info("Early stopping at epoch %d (best val_loss=%.4f)", epoch, stopper.best_loss)
-            break
-
-    if stopper.best_state:
-        model.load_state_dict(stopper.best_state)
-
-    return model, history
-
-
-def predict_proba(
-    model: ChurnMLP, X: np.ndarray, device: str = "cpu"
-) -> np.ndarray:
-    model.eval()
-    X_t = torch.tensor(X, dtype=torch.float32).to(device)
-    with torch.no_grad():
-        probs = torch.sigmoid(model(X_t)).cpu().numpy()
-    return probs
+    def predict(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+        return (self.predict_proba(X) >= threshold).astype(int)

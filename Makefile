@@ -1,7 +1,7 @@
 .PHONY: install lint lint-fix format test train run mlflow clean
 
 install:
-	pip install -e ".[dev]"
+	uv sync --extra dev
 
 lint:
 	ruff check src/ tests/ train.py
