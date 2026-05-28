@@ -1,254 +1,187 @@
-# 🔮 Churn Prediction — FIAP Tech Challenge Fase 1
+# Churn Prediction — FIAP Tech Challenge Fase 1
 
-> Modelo preditivo de churn para operadora de telecomunicações.  
-> Pipeline end-to-end: EDA → Baselines → MLP (PyTorch) → API (FastAPI) → Deploy (AWS).
+Modelo preditivo de churn para operadora de telecomunicações.
+Pipeline end-to-end: EDA → Baselines → MLP (PyTorch) → API (FastAPI) → Monitoramento.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-orange)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-green)
 ![MLflow](https://img.shields.io/badge/MLflow-2.10%2B-blue)
 ![Ruff](https://img.shields.io/badge/linting-ruff-purple)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
-## 📋 Contexto
+## Contexto
 
 Uma operadora de telecomunicações enfrenta perda acelerada de clientes. Este projeto
 constrói um sistema preditivo de churn do zero até o modelo servido via API, aplicando
 boas práticas de Machine Learning Engineering:
 
 - **Modelo principal:** Rede neural MLP treinada com PyTorch
-- **Baselines:** DummyClassifier e Regressão Logística (Scikit-Learn)
+- **Baselines:** DummyClassifier, LogisticRegression, RandomForest (com RandomizedSearchCV), GradientBoosting
 - **Rastreamento:** MLflow (parâmetros, métricas, artefatos)
-- **Serving:** API REST com FastAPI + Pydantic
-- **Deploy:** Docker + AWS ECS Fargate (bônus)
+- **Serving:** API REST com FastAPI + Pydantic (single e batch inference)
+- **Monitoramento:** Drift detection com KS test + PSI
 
 Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/telco_churn.csv`.
 
-## 🗂️ Estrutura do Projeto
+## Estrutura
 
 ```
-FIAP-MLE-Fase01/
-├── src/
-│   ├── api/           # FastAPI — /predict, /health
-│   ├── data/          # loaders e pré-processamento
-│   ├── features/      # feature engineering e pipelines sklearn
-│   ├── models/        # MLP PyTorch e baselines
-│   ├── training/      # loops de treino, avaliação e MLflow tracking
-│   └── utils/         # logging estruturado (loguru) e config centralizado
-├── tests/             # pytest: smoke test, schema (pandera), API
-├── notebooks/         # EDA exploratória e análise de baselines
-├── data/
-│   ├── raw/           # dataset original (não versionado)
-│   └── processed/     # features processadas (não versionado)
-├── models/            # artefatos treinados (não versionados)
-├── docs/
-│   └── model_card.md  # Model Card: performance, limitações e vieses
-├── .github/
-│   └── workflows/     # CI/CD GitHub Actions
-├── pyproject.toml     # dependências + config de ferramentas (single source of truth)
-├── Makefile           # atalhos de comandos
-├── Dockerfile         # imagem multi-stage para produção
-├── .env.example       # template de variáveis de ambiente
-└── README.md
+src/
+├── api/app.py              # FastAPI — /predict, /predict-batch, /health, /ready
+├── data/preprocessing.py   # Transformers sklearn + load_data()
+├── models/
+│   ├── baseline.py         # DummyClassifier, LogReg, RF, GBT
+│   └── mlp.py              # ChurnMLP (PyTorch) + EarlyStopping
+└── monitoring/
+    └── drift_detection.py  # KS test + PSI para monitoramento pós-deploy
+train.py                    # Script de treino com MLflow + RandomizedSearchCV
+tests/
+├── test_schema.py          # Validação do schema do dataset (pandera)
+├── test_smoke.py           # Smoke tests: pipeline e MLP
+└── test_api.py             # Testes da API FastAPI
+docs/
+├── model_card.md           # Model Card completo
+└── monitoring_plan.md      # Plano de monitoramento
+notebooks/
+└── 01_eda_baselines.ipynb  # EDA + baselines
 ```
 
 ---
 
-## 🚀 Setup Rápido
-
-### Pré-requisitos
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) — gerenciador de pacotes e ambientes virtuais
-- Git
-- Make (opcional, mas recomendado)
-
-### Instalação do uv
+## Setup
 
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Via pip (qualquer OS)
-pip install uv
+python -m venv .venv && source .venv/bin/activate
+make install
 ```
 
-> O `uv` substitui o pip + venv com resolução de dependências muito mais rápida.
-> O arquivo `uv.lock` garante que todos do grupo usem exatamente as mesmas versões.
-
-### 1. Clone o repositório
-```bash
-git clone git@github.com:bbryttos/FIAP-MLE-Fase01.git
-cd FIAP-MLE-Fase01
-```
-
-### 2. Crie o ambiente virtual e instale as dependências
-```bash
-uv sync --extra dev
-```
-
-> O `uv` cria automaticamente o `.venv`, resolve e instala todas as dependências
-> definidas no `pyproject.toml` (produção + dev). O `uv.lock` garante reprodutibilidade total.
-
-**PyCharm:** File → Settings → Python Interpreter → Add → Existing → selecione `.venv/bin/python`
-
-**VSCode:** `Ctrl+Shift+P` → "Python: Select Interpreter" → selecione `.venv/bin/python`
-
-### 3. Configure as variáveis de ambiente
-```bash
-cp .env.example .env
-# edite o .env conforme seu ambiente
-```
-
-### 4. Valide a instalação
-```bash
-uv run python -c "from src.utils.config import settings; print('Seed:', settings.seed)"
-# Saída esperada: Seed: 42
-```
-
-> **Sem uv?** Também é possível usar pip:
-> ```bash
-> python -m venv .venv && source .venv/bin/activate
-> pip install --upgrade pip setuptools wheel
-> pip install -e ".[dev]"
-> ```
-
----
-
-## ⚙️ Comandos Disponíveis
+Copie o dataset para a pasta `data/`:
 
 ```bash
-make install-dev    # instala todas as dependências
-make lint           # verifica qualidade do código (ruff)
-make format         # formata o código
-make test           # executa os testes com cobertura
-make train-mlp      # treina a rede neural MLP
-make run-api        # sobe a API em modo dev (localhost:8000)
-make mlflow-ui      # abre o MLflow UI (localhost:5000)
-make docker-build   # builda a imagem Docker
-```
-
-> Com `uv`, prefixe os comandos com `uv run` se o ambiente não estiver ativado:
-> `uv run pytest tests/ -v`
-
----
-
-## 🧪 Testes
-
-O projeto mantém cobertura mínima de 3 testes obrigatórios:
-
-| Teste | Descrição |
-|---|---|
-| Smoke test | valida que o modelo carrega e faz predição |
-| Schema test | valida schema do dataset com Pandera |
-| API test | valida endpoints `/predict` e `/health` |
-
-```bash
-make test
-# ou
-uv run pytest tests/ -v
+cp /caminho/para/Telco_customer_churn.xlsx data/
 ```
 
 ---
 
-## 📊 Dataset
+## Comandos
 
-**Telco Customer Churn (IBM)** — dataset público de telecomunicações.
+| Comando | Descrição |
+|---------|-----------|
+| `make train` | Treina baselines + RF tuned + MLP, loga no MLflow, salva artefatos |
+| `make run` | Sobe a API FastAPI em `http://localhost:8000` |
+| `make mlflow` | Abre o MLflow UI em `http://localhost:5000` |
+| `make test` | Roda todos os testes com pytest |
+| `make lint` | Verifica estilo com ruff |
+| `make clean` | Remove caches e artefatos temporários |
 
-- 7.043 registros · 21 features · target binário (`Churn`: Yes/No)
-- ~26% de churn — desbalanceamento tratado com SMOTE (`imbalanced-learn`)
-- Download: https://www.kaggle.com/datasets/blastchar/telco-customer-churn
+---
 
-Após o download, coloque o arquivo em:
+## Arquitetura
+
 ```
-data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv
+Telco_customer_churn.xlsx
+         │
+    load_data()              # drop leakage cols, separa X e y
+         │
+  preprocessing_pipeline     # TotalChargesImputer → BinaryEncoder
+         │                   # → ColumnTransformer (num: impute+clip+scale / cat: OHE)
+    train/val/test split
+    (estratificado, seed=42)
+         │
+    ┌────┴────────────────────────────┐
+    │  Baselines (sklearn)             │  Dummy, LogReg, RF, GBT
+    │  + RandomizedSearchCV (RF)       │  20 iter, 5-fold, scoring=AUC
+    └────┬────────────────────────────┘
+         │
+    ┌────┴────────────────┐
+    │   ChurnMLP (PyTorch) │   [input → 64 → 32 → 16 → 1]
+    │   BCEWithLogitsLoss  │   BatchNorm + Dropout + EarlyStopping
+    │   + pos_weight       │   Adam + ReduceLROnPlateau
+    └────┬────────────────┘
+         │
+      MLflow tracking (params, métricas, artefatos)
+         │
+    FastAPI /predict         # Pydantic validation + latency middleware
+    FastAPI /predict-batch   # Inferência vetorizada (até 1000 clientes)
 ```
 
 ---
 
-## 🔬 Experimentos e MLflow
-
-Todos os experimentos são rastreados no MLflow:
+## Endpoints da API
 
 ```bash
-make mlflow-ui
-# ou
-uv run mlflow ui --port 5000
-# Acesse: http://localhost:5000
-```
-
-Métricas rastreadas: `AUC-ROC`, `PR-AUC`, `F1-Score`, `Precision`, `Recall`
-
----
-
-## 🌐 API de Inferência
-
-```bash
-make run-api
-# ou
-uv run uvicorn src.api.main:app --reload --port 8000
-# Acesse: http://localhost:8000/docs
-```
-
-### Endpoints
-
-| Método | Endpoint | Descrição |
-|---|---|---|
-| GET | `/health` | verifica status da API |
-| POST | `/predict` | retorna probabilidade de churn |
-
-### Exemplo de requisição
-```bash
+# Predição individual
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"tenure": 12, "MonthlyCharges": 65.5, "TotalCharges": 786.0}'
+  -d '{
+    "gender": "Male", "senior_citizen": "No", "partner": "Yes",
+    "dependents": "No", "tenure_months": 12, "phone_service": "Yes",
+    "multiple_lines": "No", "internet_service": "DSL",
+    "online_security": "No", "online_backup": "Yes",
+    "device_protection": "No", "tech_support": "No",
+    "streaming_tv": "No", "streaming_movies": "No",
+    "contract": "Month-to-month", "paperless_billing": "Yes",
+    "payment_method": "Electronic check",
+    "monthly_charges": 56.95, "total_charges": 683.40
+  }'
 ```
 
----
-
-## 🐳 Docker
-
-```bash
-make docker-build
-docker run -p 8000:8000 churn-prediction:latest
+Resposta:
+```json
+{
+  "churn_probability": 0.73,
+  "churn_prediction": true,
+  "threshold": 0.5
+}
 ```
 
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/health` | Status da API e se modelo está carregado |
+| GET | `/ready` | Readiness check — 503 se modelo não carregado |
+| POST | `/predict` | Predição para um cliente |
+| POST | `/predict-batch` | Predição vetorizada para múltiplos clientes |
+
 ---
 
-## ☁️ Deploy AWS (Bônus)
+## Métricas Principais
 
-Deploy via AWS ECS Fargate + ECR com GitHub Actions.  
-Documentação de arquitetura: [`docs/model_card.md`](docs/model_card.md)
+| Modelo | AUC-ROC | F1 | PR-AUC |
+|--------|---------|----|--------|
+| DummyClassifier | ~0.50 | ~0.27 | ~0.27 |
+| LogisticRegression | ~0.84 | ~0.60 | ~0.68 |
+| RandomForest | ~0.83 | ~0.60 | ~0.66 |
+| RF Tuned (RandomizedSearchCV) | ~0.85 | ~0.62 | ~0.69 |
+| GradientBoosting | ~0.85 | ~0.62 | ~0.70 |
+| **MLP (PyTorch)** | **~0.86** | **~0.63** | **~0.72** |
+
+*Execute `make train` para resultados exatos no seu ambiente.*
 
 ---
 
-## 📐 Etapas do Projeto
+## Equipe
+
+| Nome | RM | E-mail |
+|------|----|--------|
+| Anna Luiza de Angelis Souza Freitas | RM375350 | annaluizafreitas17@hotmail.com |
+| Bruno Brito de Souza | RM374808 | brunobrito.learning@gmail.com |
+| Fellipe Resende Bastos | RM373040 | fbastos95@gmail.com |
+| German Eduardo Brunner | RM375046 | brunner.brunner@gmail.com |
+| Marcelo da Cruz Salvador | RM375166 | macrusal@gmail.com |
+
+---
+
+## Etapas do Projeto
 
 | Etapa | Foco | Status |
-|---|---|---|
-| 1 | EDA + ML Canvas + Baselines + MLflow | 🔄 Em andamento |
-| 2 | MLP PyTorch + comparação de modelos | ⏳ Pendente |
-| 3 | Refatoração + FastAPI + testes + Makefile | ⏳ Pendente |
-| 4 | Model Card + README + vídeo STAR + deploy | ⏳ Pendente |
+|-------|------|--------|
+| 1 | EDA + ML Canvas + Baselines + MLflow | Em andamento |
+| 2 | MLP PyTorch + comparação de modelos | Pendente |
+| 3 | Refatoração + FastAPI + testes + Makefile | Pendente |
+| 4 | Model Card + README + deploy | Pendente |
 
 ---
-
-## 👥 Equipe
-
-| Nome | RM                     |e-mail| Papel                                |
-|---|------------------------|---|--------------------------------------|
-| Anna Luiza de Angelis Souza Freitas |RM375350|annaluizafreitas17@hotmail.com| Dados / Machine Learning Engineering                            |
-| Bruno Brito de Souza |RM374808|brunobrito.learning@gmail.com| Dados / Machine Learning Engineering                           |
-| Fellipe Resende Bastos |RM373040|fbastos95@gmail.com| Dados / Machine Learning Engineering |
-| German Eduardo Brunner |RM375046|brunner.brunner@gmail.com| Dados / Machine Learning Engineering                           |
-| Marcelo da Cruz Salvador |RM375166|macrusal@gmail.com| Dados / Machine Learning Engineering                           |
-
----
-
-## 📄 Licença
 
 MIT License
