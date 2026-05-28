@@ -1,5 +1,3 @@
-import logging
-
 import mlflow
 import mlflow.sklearn
 import pandas as pd
@@ -17,7 +15,9 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.pipeline import Pipeline
 
-logger = logging.getLogger(__name__)
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 RANDOM_STATE = 42
 CV_FOLDS = 5
