@@ -176,11 +176,11 @@ Resposta:
 ## Etapas do Projeto
 
 | Etapa | Foco | Status |
-|-------|------|--------|
-| 1 | EDA + ML Canvas + Baselines + MLflow | Em andamento |
-| 2 | MLP PyTorch + comparação de modelos | Pendente |
-| 3 | Refatoração + FastAPI + testes + Makefile | Pendente |
-| 4 | Model Card + README + deploy | Pendente |
+|---|---|---|
+| 1 | EDA + Baselines + MLflow | ✅ Concluída |
+| 2 | MLP PyTorch + comparação de modelos | ✅ Concluída |
+| 3 | Refatoração + FastAPI + testes + Makefile | ✅ Concluída |
+| 4 | Model Card + README + vídeo STAR + deploy | ✅ Concluída |
 
 ---
 
