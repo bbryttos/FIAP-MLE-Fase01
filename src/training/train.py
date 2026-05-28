@@ -1,5 +1,4 @@
 import json
-import logging
 from pathlib import Path
 
 import joblib
@@ -17,12 +16,9 @@ from src.data.preprocessing import (
 from src.data.schema import validate_raw
 from src.models.baseline import build_baselines, compute_metrics, train_baseline
 from src.models.mlp import MLPTrainer
+from src.utils.logger import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 RANDOM_STATE = 42
 MODELS_DIR = Path("models")
