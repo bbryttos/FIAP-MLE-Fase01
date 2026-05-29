@@ -17,6 +17,7 @@ from src.data.schema import validate_raw
 from src.models.baseline import build_baselines, compute_metrics, train_baseline
 from src.models.mlp import MLPTrainer
 from src.utils.logger import get_logger
+from src.utils import settings
 
 logger = get_logger(__name__)
 
@@ -24,9 +25,9 @@ RANDOM_STATE = 42
 MODELS_DIR = Path("models")
 MODELS_DIR.mkdir(exist_ok=True)
 
-DATA_PATH = "data/raw/Telco_customer_churn.csv"
+DATA_PATH = settings.data_path
 MLFLOW_EXPERIMENT = "churn-prediction"
-MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
+MLFLOW_TRACKING_URI = settings.mlflow_tracking_uri
 
 MLP_PARAMS = {
     "hidden_dims": [128, 64, 32],
