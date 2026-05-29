@@ -21,15 +21,16 @@ boas práticas de Machine Learning Engineering:
 - **Baselines:** DummyClassifier, LogisticRegression, RandomForest (com RandomizedSearchCV), GradientBoosting
 - **Rastreamento:** MLflow (parâmetros, métricas, artefatos)
 - **Serving:** API REST com FastAPI + Pydantic (single e batch inference)
+- **Segurança:** JWT + API Key + Rate Limiting + CORS
 - **Monitoramento:** Drift detection com KS test + PSI
 
-Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/telco_churn.csv`.
+Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/Telco_customer_churn.csv`.
 
 ## Estrutura
 
 ```
 src/
-├── api/app.py              # FastAPI — /predict, /predict-batch, /health, /ready
+├── api/app.py              # FastAPI — /predict, /predict-batch, /health, /ready, /auth/*
 ├── data/preprocessing.py   # Transformers sklearn + load_data()
 ├── models/
 │   ├── baseline.py         # DummyClassifier, LogReg, RF, GBT
@@ -52,15 +53,49 @@ notebooks/
 
 ## Setup
 
+### Pré-requisitos
+- Python 3.10, 3.11 ou 3.12 (3.13+ não suportado pelo torch 2.2.x)
+- [uv](https://docs.astral.sh/uv/) — gerenciador de pacotes
+
+### Instalação do uv
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
-make install
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Via pip
+pip install uv
 ```
 
-Copie o dataset para a pasta `data/`:
+### Instalação do projeto
 
 ```bash
-cp /caminho/para/Telco_customer_churn.xlsx data/
+git clone git@github.com:bbryttos/FIAP-MLE-Fase01.git
+cd FIAP-MLE-Fase01
+
+# Cria o ambiente e instala todas as dependências
+uv sync --extra dev
+
+# Configura as variáveis de ambiente
+cp .env.example .env
+```
+
+### Sem uv (alternativa com pip)
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install -e ".[dev]"
+```
+
+### Valida a instalação
+
+```bash
+uv run python -c "from src.utils.config import settings; print('Seed:', settings.seed)"
+# Saída esperada: Seed: 42
 ```
 
 ---
@@ -68,20 +103,25 @@ cp /caminho/para/Telco_customer_churn.xlsx data/
 ## Comandos
 
 | Comando | Descrição |
-|---------|-----------|
+|---|---|
+| `make install` | Instala todas as dependências |
 | `make train` | Treina baselines + RF tuned + MLP, loga no MLflow, salva artefatos |
 | `make run` | Sobe a API FastAPI em `http://localhost:8000` |
-| `make mlflow` | Abre o MLflow UI em `http://localhost:5000` |
+| `make mlflow-ui` | Abre o MLflow UI em `http://localhost:5001`* |
 | `make test` | Roda todos os testes com pytest |
 | `make lint` | Verifica estilo com ruff |
 | `make clean` | Remove caches e artefatos temporários |
+
+> *A porta 5000 é reservada pelo AirPlay Receiver no macOS Monterey+.
+> Para usar a porta 5000 no macOS: **System Settings → AirDrop & Handoff → AirPlay Receiver → desligar**.
+> Usuários Linux/Windows podem usar a porta 5000 normalmente.
 
 ---
 
 ## Arquitetura
 
 ```
-Telco_customer_churn.xlsx
+Telco_customer_churn.csv
          │
     load_data()              # drop leakage cols, separa X e y
          │
@@ -96,24 +136,82 @@ Telco_customer_churn.xlsx
     └────┬────────────────────────────┘
          │
     ┌────┴────────────────┐
-    │   ChurnMLP (PyTorch) │   [input → 64 → 32 → 16 → 1]
+    │   ChurnMLP (PyTorch) │   [input → 128 → 64 → 32 → 1]
     │   BCEWithLogitsLoss  │   BatchNorm + Dropout + EarlyStopping
     │   + pos_weight       │   Adam + ReduceLROnPlateau
     └────┬────────────────┘
          │
       MLflow tracking (params, métricas, artefatos)
          │
-    FastAPI /predict         # Pydantic validation + latency middleware
+    FastAPI /predict         # JWT auth + Pydantic validation + latency middleware
     FastAPI /predict-batch   # Inferência vetorizada (até 1000 clientes)
 ```
 
 ---
 
-## Endpoints da API
+## Autenticação da API
+
+A API possui dois métodos de autenticação:
+
+### JWT (usuários autenticados)
 
 ```bash
-# Predição individual
+# 1. Faz login e obtém o token
+curl -X POST "http://localhost:8000/auth/login?username=admin&password=admin123"
+
+# Resposta:
+# {
+#   "access_token": "eyJ...",
+#   "token_type": "bearer",
+#   "expires_in": 3600
+# }
+
+# 2. Usa o token nas requisições
 curl -X POST http://localhost:8000/predict \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+```
+
+**Usuários disponíveis para teste:**
+
+| Usuário | Senha | Papel |
+|---|---|---|
+| `admin` | `admin123` | admin |
+| `user` | `user123` | user |
+
+> Em produção: substitua por banco de dados com senhas hasheadas e gere o `JWT_SECRET_KEY` com `openssl rand -hex 32`.
+
+### API Key (comunicação entre serviços)
+
+```bash
+curl -X POST http://localhost:8000/predict-apikey \
+  -H "X-API-Key: churn-api-key-fiap-2026" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+```
+
+> Em produção: defina `API_KEY` no `.env` com um valor forte gerado por `openssl rand -hex 16`.
+
+---
+
+## Endpoints da API
+
+| Método | Endpoint | Auth | Descrição |
+|---|---|---|---|
+| GET | `/health` | Público | Status da API e se modelo está carregado |
+| GET | `/ready` | Público | Readiness check — 503 se modelo não carregado |
+| POST | `/auth/login` | Público | Login e geração de token JWT |
+| GET | `/auth/me` | JWT | Dados do usuário autenticado |
+| POST | `/predict` | JWT | Predição para um cliente |
+| POST | `/predict-apikey` | API Key | Predição para um cliente (serviços) |
+| POST | `/predict-batch` | JWT | Predição para múltiplos clientes (até 1000) |
+
+### Exemplo de requisição
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
     "senior_citizen": 0,
@@ -139,33 +237,42 @@ curl -X POST http://localhost:8000/predict \
 ```
 
 ### Exemplo de resposta
+
 ```json
 {
-  "churn_probability": 0.72,
+  "churn_probability": 0.7422,
   "prediction": 1,
   "risk_level": "high"
 }
 ```
 
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| GET | `/health` | Status da API e se modelo está carregado |
-| GET | `/ready` | Readiness check — 503 se modelo não carregado |
-| POST | `/predict` | Predição para um cliente |
-| POST | `/predict-batch` | Predição vetorizada para múltiplos clientes |
+---
+
+## Rate Limiting
+
+A API limita **100 requisições por 60 segundos** por IP.
+Ao exceder o limite, retorna `429 Too Many Requests`:
+
+```json
+{
+  "detail": "Limite excedido: 100 requisições por 60s",
+  "retry_after": 45
+}
+```
+
+Os headers `X-RateLimit-Limit` e `X-RateLimit-Remaining` são retornados em todas as respostas.
 
 ---
 
 ## Métricas Principais
 
-| Modelo | AUC-ROC | F1 | PR-AUC |
-|--------|---------|----|--------|
-| DummyClassifier | ~0.50 | ~0.27 | ~0.27 |
-| LogisticRegression | ~0.84 | ~0.60 | ~0.68 |
-| RandomForest | ~0.83 | ~0.60 | ~0.66 |
-| RF Tuned (RandomizedSearchCV) | ~0.85 | ~0.62 | ~0.69 |
-| GradientBoosting | ~0.85 | ~0.62 | ~0.70 |
-| **MLP (PyTorch)** | **~0.86** | **~0.63** | **~0.72** |
+| Modelo | AUC-ROC | F1 | Recall |
+|---|---|---|---|
+| DummyClassifier | 0.52 | 0.29 | 0.29 |
+| LogisticRegression | 0.85 | 0.62 | 0.80 |
+| RandomForest | 0.82 | 0.54 | 0.48 |
+| GradientBoosting | 0.84 | 0.59 | 0.52 |
+| **MLP (PyTorch)** | **0.84** | **0.62** | **0.79** |
 
 *Execute `make train` para resultados exatos no seu ambiente.*
 
@@ -174,7 +281,7 @@ curl -X POST http://localhost:8000/predict \
 ## Equipe
 
 | Nome | RM | E-mail |
-|------|----|--------|
+|---|---|---|
 | Anna Luiza de Angelis Souza Freitas | RM375350 | annaluizafreitas17@hotmail.com |
 | Bruno Brito de Souza | RM374808 | brunobrito.learning@gmail.com |
 | Fellipe Resende Bastos | RM373040 | fbastos95@gmail.com |
