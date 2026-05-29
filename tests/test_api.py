@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 import src.api.app as app_module
 from src.api.app import app
+from src.api.app import create_access_token
 from src.models.mlp import ChurnMLP
 
 VALID_PAYLOAD = {
@@ -28,6 +29,10 @@ VALID_PAYLOAD = {
     "payment_method": "Electronic check",
 }
 
+# Token JWT válido para os testes
+TEST_TOKEN = create_access_token(username="admin", role="admin")
+AUTH_HEADERS = {"Authorization": f"Bearer {TEST_TOKEN}"}
+
 
 @pytest.fixture
 def client():
@@ -40,7 +45,6 @@ def client():
     mock_model.eval()
 
     with TestClient(app) as c:
-        # A API usa _state (dict modular), não app.state
         app_module._state["pipeline"] = mock_pipeline
         app_module._state["model"] = mock_model
         yield c
@@ -67,12 +71,12 @@ def test_health_returns_ok(client):
 
 
 def test_predict_valid_payload_returns_200(client):
-    response = client.post("/predict", json=VALID_PAYLOAD)
+    response = client.post("/predict", json=VALID_PAYLOAD, headers=AUTH_HEADERS)
     assert response.status_code == 200
 
 
 def test_predict_response_schema(client):
-    response = client.post("/predict", json=VALID_PAYLOAD)
+    response = client.post("/predict", json=VALID_PAYLOAD, headers=AUTH_HEADERS)
     data = response.json()
     assert "churn_probability" in data
     assert "prediction" in data
@@ -80,42 +84,58 @@ def test_predict_response_schema(client):
 
 
 def test_predict_probability_in_range(client):
-    response = client.post("/predict", json=VALID_PAYLOAD)
+    response = client.post("/predict", json=VALID_PAYLOAD, headers=AUTH_HEADERS)
     prob = response.json()["churn_probability"]
     assert 0.0 <= prob <= 1.0
 
 
 def test_predict_binary_prediction(client):
-    response = client.post("/predict", json=VALID_PAYLOAD)
+    response = client.post("/predict", json=VALID_PAYLOAD, headers=AUTH_HEADERS)
     prediction = response.json()["prediction"]
     assert prediction in {0, 1}
 
 
 def test_predict_risk_level_valid(client):
-    response = client.post("/predict", json=VALID_PAYLOAD)
+    response = client.post("/predict", json=VALID_PAYLOAD, headers=AUTH_HEADERS)
     risk = response.json()["risk_level"]
     assert risk in {"low", "medium", "high"}
 
 
 def test_predict_missing_field_returns_422(client):
     incomplete = {k: v for k, v in VALID_PAYLOAD.items() if k != "tenure"}
-    response = client.post("/predict", json=incomplete)
+    response = client.post("/predict", json=incomplete, headers=AUTH_HEADERS)
     assert response.status_code == 422
 
 
 def test_predict_invalid_senior_citizen_returns_422(client):
     payload = {**VALID_PAYLOAD, "senior_citizen": 5}
-    response = client.post("/predict", json=payload)
+    response = client.post("/predict", json=payload, headers=AUTH_HEADERS)
     assert response.status_code == 422
 
 
 def test_predict_invalid_categorical_returns_422(client):
     payload = {**VALID_PAYLOAD, "gender": "Other"}
-    response = client.post("/predict", json=payload)
+    response = client.post("/predict", json=payload, headers=AUTH_HEADERS)
     assert response.status_code == 422
 
 
 def test_predict_model_not_loaded_returns_503(client_no_model):
-    response = client_no_model.post("/predict", json=VALID_PAYLOAD)
+    response = client_no_model.post("/predict", json=VALID_PAYLOAD, headers=AUTH_HEADERS)
     assert response.status_code == 503
     assert response.json()["detail"] == "Model not available"
+
+
+def test_predict_without_token_returns_401(client):
+    response = client.post("/predict", json=VALID_PAYLOAD)
+    assert response.status_code == 401
+
+
+def test_auth_login_valid_credentials(client):
+    response = client.post("/auth/login?username=admin&password=admin123")
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+
+
+def test_auth_login_invalid_credentials(client):
+    response = client.post("/auth/login?username=admin&password=wrong")
+    assert response.status_code == 401
