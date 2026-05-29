@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 RAW_SCHEMA = DataFrameSchema(
     columns={
         "gender": Column(str, Check.isin(["Male", "Female"])),
-        "senior_citizen": Column(str, Check.isin(["Yes", "No"])),
+        "senior_citizen": Column(int, Check.isin([0, 1])),
         "partner": Column(str, Check.isin(["Yes", "No"])),
         "dependents": Column(str, Check.isin(["Yes", "No"])),
         "tenure": Column(int, Check.ge(0)),
