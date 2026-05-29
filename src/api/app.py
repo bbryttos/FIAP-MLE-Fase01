@@ -12,43 +12,32 @@ Segurança implementada:
 
 import json
 import time
-from collections import defaultdict
-from collections import deque
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated
-from typing import Any
-from typing import Optional
+from typing import Annotated, Any
 
 import joblib
 import numpy as np
 import pandas as pd
 import torch
-from fastapi import Depends
-from fastapi import FastAPI
-from fastapi import Header
-from fastapi import HTTPException
-from fastapi import Request
-from fastapi import status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from jose import JWTError
-from jose import jwt
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from src.api.schemas import BatchPredictionOutput
-from src.api.schemas import ClienteInput
-from src.api.schemas import HealthOutput
-from src.api.schemas import PredictionOutput
-from src.models.mlp import ChurnMLP
-from src.models.mlp import predict_proba
+from src.api.schemas import (
+    BatchPredictionOutput,
+    ClienteInput,
+    HealthOutput,
+    PredictionOutput,
+)
+from src.models.mlp import ChurnMLP, predict_proba
 from src.utils.config import settings
 from src.utils.logger import get_logger
-
-from fastapi.security import HTTPBearer
-from fastapi.security import HTTPAuthorizationCredentials
 
 logger = get_logger(__name__)
 
@@ -244,7 +233,7 @@ def create_access_token(username: str, role: str) -> str:
 
 
 def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
+    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
 ) -> dict:
     """Valida o token JWT do header Authorization: Bearer <token>."""
     if not credentials:
@@ -266,7 +255,7 @@ def verify_token(
 
 
 # ── Funções API Key ───────────────────────────────────────────────────────────
-def verify_api_key(x_api_key: Optional[str] = Header(default=None)) -> str:
+def verify_api_key(x_api_key: str | None = Header(default=None)) -> str:
     """Valida API Key do header X-API-Key."""
     if x_api_key is None:
         raise HTTPException(
