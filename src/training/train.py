@@ -16,8 +16,8 @@ from src.data.preprocessing import (
 from src.data.schema import validate_raw
 from src.models.baseline import build_baselines, compute_metrics, train_baseline
 from src.models.mlp import MLPTrainer
-from src.utils.logger import get_logger
 from src.utils import settings
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
