@@ -28,7 +28,7 @@ RAW_SCHEMA = pa.DataFrameSchema(
 )
 def test_data_loads():
     df = load_data(DATA_PATH)
-    assert len(df) >= 5000
+    assert len(df) >= 5001
     assert "churn" in df.columns
 
 

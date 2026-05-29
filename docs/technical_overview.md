@@ -568,8 +568,8 @@ churn_experiment (parent run)
 
 Acessar o MLflow UI:
 ```bash
-uv run mlflow ui --host 0.0.0.0 --port 5000
-# http://localhost:5000
+uv run mlflow ui --host 0.0.0.0 --port 5001
+# http://localhost:5001
 ```
 
 ---

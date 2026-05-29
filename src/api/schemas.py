@@ -59,17 +59,64 @@ class ClienteInput(BaseModel):
 
 
 class PredictionOutput(BaseModel):
-    churn_probability: float = Field(..., description="Probabilidade de churn (0 a 1)")
-    prediction: int = Field(..., description="0=Nao churn, 1=Churn")
-    risk_level: Literal["low", "medium", "high"]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "churn_probability": 0.7213,
+                "prediction": 1,
+                "risk_level": "high",
+            }
+        }
+    )
+
+    churn_probability: float = Field(
+        ..., ge=0, le=1, description="Probabilidade de churn (0 a 1)"
+    )
+    prediction: int = Field(..., ge=0, le=1, description="0=Nao churn, 1=Churn")
+    risk_level: Literal["low", "medium", "high"] = Field(
+        ..., description="Classificacao de risco baseada na probabilidade"
+    )
 
 
 class BatchPredictionOutput(BaseModel):
-    predictions: list[PredictionOutput]
-    count: int
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "predictions": [
+                    {"churn_probability": 0.7213, "prediction": 1, "risk_level": "high"},
+                    {"churn_probability": 0.1842, "prediction": 0, "risk_level": "low"},
+                ],
+                "count": 2,
+            }
+        }
+    )
+
+    predictions: list[PredictionOutput] = Field(
+        ..., description="Lista de predicoes para cada cliente enviado"
+    )
+    count: int = Field(..., ge=0, description="Total de predicoes retornadas")
 
 
 class HealthOutput(BaseModel):
-    status: str
-    model_loaded: bool
-    version: str
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "ok",
+                "model_loaded": True,
+                "version": "1.0.0",
+            }
+        }
+    )
+
+    status: str = Field(..., description="Status geral da API")
+    model_loaded: bool = Field(..., description="Indica se os artefatos do modelo foram carregados")
+    version: str = Field(..., description="Versao da API")
+
+
+class ReadyOutput(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"status": "ready"}})
+    status: Literal["ready"] = Field(..., description="Indica que a API esta pronta para inferencia")
+
+
+class ErrorOutput(BaseModel):
+    detail: str = Field(..., description="Descricao textual do erro")

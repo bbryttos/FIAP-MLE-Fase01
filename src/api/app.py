@@ -8,13 +8,15 @@ import joblib
 import numpy as np
 import pandas as pd
 import torch
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 
 from src.api.schemas import (
     BatchPredictionOutput,
     ClienteInput,
+    ErrorOutput,
     HealthOutput,
     PredictionOutput,
+    ReadyOutput,
 )
 from src.models.mlp import ChurnMLP, predict_proba
 from src.utils.config import settings
@@ -81,8 +83,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Churn Prediction API",
-    description="Previsão de churn para operadora de telecomunicações — FIAP Tech Challenge Fase 1",
+    description=(
+        "API de inferencia para predicao de churn de clientes de telecom. "
+        "Inclui endpoints de monitoramento (health/readiness), predicao individual "
+        "e predicao em lote."
+    ),
     version=settings.api_version,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    license_info={"name": "MIT"},
+    openapi_tags=[
+        {"name": "Monitoring", "description": "Health checks e readiness da API"},
+        {"name": "Inference", "description": "Predicao de churn individual e em lote"},
+    ],
     lifespan=lifespan,
 )
 
@@ -142,7 +156,13 @@ def _risk_level(prob: float) -> str:
     return "low"
 
 
-@app.get("/health", response_model=HealthOutput, tags=["Monitoring"])
+@app.get(
+    "/health",
+    response_model=HealthOutput,
+    tags=["Monitoring"],
+    summary="Health check da API",
+    description="Retorna status da API, versao e se os artefatos do modelo estao carregados.",
+)
 async def health():
     return HealthOutput(
         status="ok",
@@ -151,14 +171,45 @@ async def health():
     )
 
 
-@app.get("/ready", tags=["Monitoring"], summary="Readiness check")
+@app.get(
+    "/ready",
+    response_model=ReadyOutput,
+    tags=["Monitoring"],
+    summary="Readiness check",
+    description=(
+        "Valida se pipeline e modelo estao carregados. "
+        "Retorna 503 quando a API ainda nao esta pronta para inferencia."
+    ),
+    responses={
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "model": ErrorOutput,
+            "description": "Modelo ainda nao carregado.",
+        }
+    },
+)
 async def ready():
     if _state["pipeline"] is None or _state["model"] is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"status": "ready"}
+    return ReadyOutput(status="ready")
 
 
-@app.post("/predict", response_model=PredictionOutput, tags=["Inference"])
+@app.post(
+    "/predict",
+    response_model=PredictionOutput,
+    tags=["Inference"],
+    summary="Predicao individual",
+    description="Recebe os dados de um cliente e retorna probabilidade de churn e nivel de risco.",
+    responses={
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+            "model": ErrorOutput,
+            "description": "Payload invalido ou erro no preprocessing.",
+        },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "model": ErrorOutput,
+            "description": "Modelo indisponivel no momento.",
+        },
+    },
+)
 async def predict(cliente: ClienteInput, bundle: ModelState):
     try:
         X = bundle["pipeline"].transform(_customer_to_df(cliente)).astype(np.float32)
@@ -178,9 +229,50 @@ async def predict(cliente: ClienteInput, bundle: ModelState):
     )
 
 
-@app.post("/predict-batch", response_model=BatchPredictionOutput, tags=["Inference"])
+@app.post(
+    "/predict-batch",
+    response_model=BatchPredictionOutput,
+    tags=["Inference"],
+    summary="Predicao em lote",
+    description=(
+        "Recebe uma lista de clientes e retorna predicoes para todos os itens. "
+        "O batch deve conter entre 1 e 1000 clientes."
+    ),
+    responses={
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+            "model": ErrorOutput,
+            "description": "Payload invalido, lote fora do limite ou erro no preprocessing.",
+        },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "model": ErrorOutput,
+            "description": "Modelo indisponivel no momento.",
+        },
+    },
+)
 async def predict_batch(
-    clientes: Annotated[list[ClienteInput], ...],
+    clientes: Annotated[
+        list[ClienteInput],
+        Body(
+            ...,
+            min_length=1,
+            max_length=1000,
+            openapi_examples={
+                "dois_clientes": {
+                    "summary": "Exemplo com dois clientes",
+                    "value": [
+                        ClienteInput.model_config["json_schema_extra"]["example"],
+                        {
+                            **ClienteInput.model_config["json_schema_extra"]["example"],
+                            "tenure": 48,
+                            "contract": "Two year",
+                            "internet_service": "DSL",
+                            "payment_method": "Bank transfer (automatic)",
+                        },
+                    ],
+                }
+            },
+        ),
+    ],
     bundle: ModelState,
 ):
     if len(clientes) == 0 or len(clientes) > 1000:

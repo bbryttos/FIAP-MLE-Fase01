@@ -71,7 +71,7 @@ cp /caminho/para/Telco_customer_churn.xlsx data/
 |---------|-----------|
 | `make train` | Treina baselines + RF tuned + MLP, loga no MLflow, salva artefatos |
 | `make run` | Sobe a API FastAPI em `http://localhost:8000` |
-| `make mlflow` | Abre o MLflow UI em `http://localhost:5000` |
+| `make mlflow-ui` | Abre o MLflow UI em `http://localhost:5001` |
 | `make test` | Roda todos os testes com pytest |
 | `make lint` | Verifica estilo com ruff |
 | `make clean` | Remove caches e artefatos temporários |
@@ -110,6 +110,12 @@ Telco_customer_churn.xlsx
 ---
 
 ## Endpoints da API
+
+Com a API em execucao (`make run`), a documentacao interativa fica disponivel em:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
 
 ```bash
 # Predição individual

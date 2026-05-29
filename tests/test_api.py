@@ -66,6 +66,21 @@ def test_health_returns_ok(client):
     assert "version" in data
 
 
+def test_docs_endpoint_available(client):
+    response = client.get("/docs")
+    assert response.status_code == 200
+
+
+def test_openapi_json_contains_main_paths(client):
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    assert "/health" in paths
+    assert "/ready" in paths
+    assert "/predict" in paths
+    assert "/predict-batch" in paths
+
+
 def test_predict_valid_payload_returns_200(client):
     response = client.post("/predict", json=VALID_PAYLOAD)
     assert response.status_code == 200
