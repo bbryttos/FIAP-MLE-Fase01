@@ -1,17 +1,13 @@
 """
 Configuração centralizada do projeto.
-
 Carrega variáveis do arquivo .env e expõe um objeto `settings`
 com todas as configurações necessárias para treino, API e MLflow.
-
 Uso:
     from src.utils.config import settings
-
     print(settings.seed)           # 42
     print(settings.model_path)     # models/mlp_churn.pt
     print(settings.mlflow_uri)     # http://localhost:5000
 """
-
 import random
 from pathlib import Path
 
@@ -52,6 +48,32 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000)
     api_version: str = Field(default="1.0.0")
     models_dir: str = Field(default="models")
+
+    # Segurança — JWT
+    jwt_secret_key: str = Field(
+        default="churn-secret-key-fiap-tech-challenge-2026",
+        description="Chave secreta para assinar tokens JWT. Em produção use: openssl rand -hex 32",
+    )
+    jwt_expire_minutes: int = Field(
+        default=60,
+        description="Tempo de expiração do token JWT em minutos",
+    )
+
+    # Segurança — API Key
+    api_key: str = Field(
+        default="churn-api-key-fiap-2026",
+        description="API Key para autenticação entre serviços. Em produção use valor aleatório forte.",
+    )
+
+    # Rate Limiting
+    rate_limit_requests: int = Field(
+        default=100,
+        description="Número máximo de requisições por janela de tempo",
+    )
+    rate_limit_window: int = Field(
+        default=60,
+        description="Janela de tempo em segundos para o rate limiting",
+    )
 
     # Logging
     log_level: str = Field(default="INFO")
