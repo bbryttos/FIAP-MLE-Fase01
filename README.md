@@ -302,6 +302,9 @@ docker-compose up -d
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 (admin/admin123) |
 
+> **Nota:** Os arquivos de configuração (`monitoring/prometheus.yml`, `monitoring/grafana/`) são versionados.
+> Os dados gerados pelo Prometheus e Grafana (`monitoring/prometheus/data/`, `monitoring/grafana/data/`) estão no `.gitignore`.
+
 ### Performance de build
 
 O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
