@@ -67,3 +67,7 @@ mlruns/
 # Claude
 CLAUDE.md
 .claude/
+
+# Monitoring data
+monitoring/grafana/data/
+monitoring/prometheus/data/
