@@ -9,7 +9,7 @@ services:
     environment:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-churn-secret-key-fiap-tech-challenge-2026}
       - API_KEY=${API_KEY:-churn-api-key-fiap-2026}
-      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://localhost:5001}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./models:/app/models:ro
@@ -20,6 +20,27 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - mlflow
+
+  # ── MLflow ────────────────────────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: churn-mlflow
+    ports:
+      - "5001:5000"
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlruns
+      --host 0.0.0.0
+      --port 5000
+    volumes:
+      - ./mlruns:/mlruns
+      - ./mlflow.db:/mlflow.db
     restart: unless-stopped
     networks:
       - monitoring
