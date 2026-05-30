@@ -1,17 +1,19 @@
-# Churn Prediction — FIAP Tech Challenge Fase 1
+# 🔮 Churn Prediction — FIAP Tech Challenge Fase 1
 
-Modelo preditivo de churn para operadora de telecomunicações.
-Pipeline end-to-end: EDA → Baselines → MLP (PyTorch) → API (FastAPI) → Monitoramento.
+> Modelo preditivo de churn para operadora de telecomunicações.
+> Pipeline end-to-end: EDA → Baselines → MLP (PyTorch) → API (FastAPI) → Deploy (Docker + CI/CD).
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-orange)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-green)
 ![MLflow](https://img.shields.io/badge/MLflow-2.10%2B-blue)
 ![Ruff](https://img.shields.io/badge/linting-ruff-purple)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-black)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
-## Contexto
+## 📋 Contexto
 
 Uma operadora de telecomunicações enfrenta perda acelerada de clientes. Este projeto
 constrói um sistema preditivo de churn do zero até o modelo servido via API, aplicando
@@ -23,39 +25,68 @@ boas práticas de Machine Learning Engineering:
 - **Serving:** API REST com FastAPI + Pydantic (single e batch inference)
 - **Segurança:** JWT + API Key + Rate Limiting + CORS
 - **Monitoramento:** Drift detection com KS test + PSI
+- **Deploy:** Docker multi-stage + CI/CD via GitHub Actions + AWS ECS Fargate (bônus)
 
-Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e salve em `data/raw/Telco_customer_churn.csv`.
+---
 
-## Estrutura
+## 🗂️ Estrutura do Projeto
 
 ```
-src/
-├── api/app.py              # FastAPI — /predict, /predict-batch, /health, /ready, /auth/*
-├── data/preprocessing.py   # Transformers sklearn + load_data()
-├── models/
-│   ├── baseline.py         # DummyClassifier, LogReg, RF, GBT
-│   └── mlp.py              # ChurnMLP (PyTorch) + EarlyStopping
-└── monitoring/
-    └── drift_detection.py  # KS test + PSI para monitoramento pós-deploy
-train.py                    # Script de treino com MLflow + RandomizedSearchCV
-tests/
-├── test_schema.py          # Validação do schema do dataset (pandera)
-├── test_smoke.py           # Smoke tests: pipeline e MLP
-└── test_api.py             # Testes da API FastAPI
-docs/
-├── model_card.md           # Model Card completo
-└── monitoring_plan.md      # Plano de monitoramento
-notebooks/
-└── 01_eda_baselines.ipynb  # EDA + baselines
+FIAP-MLE-Fase01/
+├── src/
+│   ├── api/
+│   │   ├── app.py          # FastAPI — /predict, /predict-batch, /health, /ready, /auth/*
+│   │   └── schemas.py      # Schemas Pydantic (entrada e saída)
+│   ├── data/
+│   │   ├── preprocessing.py # Transformers sklearn + load_data()
+│   │   └── schema.py        # Validação Pandera do dataset
+│   ├── features/
+│   │   └── engineering.py   # Feature engineering
+│   ├── models/
+│   │   ├── baseline.py      # DummyClassifier, LogReg, RF, GBT
+│   │   └── mlp.py           # ChurnMLP (PyTorch) + EarlyStopping
+│   ├── monitoring/
+│   │   └── drift_detection.py # KS test + PSI para monitoramento pós-deploy
+│   ├── training/
+│   │   └── train.py         # Script de treino com MLflow
+│   └── utils/
+│       ├── config.py        # Configuração centralizada (pydantic-settings)
+│       └── logger.py        # Logging estruturado (loguru)
+├── tests/
+│   ├── test_api.py          # Testes da API FastAPI (com JWT)
+│   ├── test_model.py        # Testes do MLP PyTorch
+│   ├── test_preprocessing.py # Testes de pré-processamento
+│   ├── test_schema.py       # Validação do schema do dataset (pandera)
+│   └── test_smoke.py        # Smoke tests: pipeline e MLP
+├── notebooks/
+│   └── 01_eda_baselines.ipynb # EDA + baselines
+├── data/
+│   ├── raw/                 # dataset original (não versionado)
+│   └── processed/           # features processadas (não versionado)
+├── models/                  # artefatos treinados (não versionados)
+├── docs/
+│   ├── model_card.md        # Model Card: performance, limitações e vieses
+│   └── monitoring_plan.md   # Plano de monitoramento
+├── .github/
+│   └── workflows/
+│       ├── ci.yml           # CI: lint + testes em todo PR
+│       └── cd.yml           # CD: build e push Docker para GHCR
+├── pyproject.toml           # dependências + config de ferramentas (single source of truth)
+├── Makefile                 # atalhos de comandos
+├── Dockerfile               # imagem multi-stage para produção
+├── .env.example             # template de variáveis de ambiente
+└── README.md
 ```
 
 ---
 
-## Setup
+## 🚀 Setup Rápido
 
 ### Pré-requisitos
 - Python 3.10, 3.11 ou 3.12 (3.13+ não suportado pelo torch 2.2.x)
 - [uv](https://docs.astral.sh/uv/) — gerenciador de pacotes
+- Git
+- Make (opcional, mas recomendado)
 
 ### Instalação do uv
 
@@ -98,14 +129,22 @@ uv run python -c "from src.utils.config import settings; print('Seed:', settings
 # Saída esperada: Seed: 42
 ```
 
+### Dataset
+
+Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) e coloque em:
+
+```
+data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv
+```
+
 ---
 
-## Comandos
+## ⚙️ Comandos
 
 | Comando | Descrição |
 |---|---|
 | `make install` | Instala todas as dependências |
-| `make train` | Treina baselines + RF tuned + MLP, loga no MLflow, salva artefatos |
+| `make train` | Treina baselines + MLP, loga no MLflow, salva artefatos |
 | `make run` | Sobe a API FastAPI em `http://localhost:8000` |
 | `make mlflow-ui` | Abre o MLflow UI em `http://localhost:5001`* |
 | `make test` | Roda todos os testes com pytest |
@@ -113,64 +152,62 @@ uv run python -c "from src.utils.config import settings; print('Seed:', settings
 | `make clean` | Remove caches e artefatos temporários |
 
 > *A porta 5000 é reservada pelo AirPlay Receiver no macOS Monterey+.
-> Para usar a porta 5000 no macOS: **System Settings → AirDrop & Handoff → AirPlay Receiver → desligar**.
+> Para usar a porta 5000: **System Settings → AirDrop & Handoff → AirPlay Receiver → desligar**.
 > Usuários Linux/Windows podem usar a porta 5000 normalmente.
 
 ---
 
-## Arquitetura
+## 🏗️ Arquitetura
 
 ```
-Telco_customer_churn.csv
+WA_Fn-UseC_-Telco-Customer-Churn.csv
          │
-    load_data()              # drop leakage cols, separa X e y
+    load_data()              # renomeia colunas, separa X e y
          │
-  preprocessing_pipeline     # TotalChargesImputer → BinaryEncoder
-         │                   # → ColumnTransformer (num: impute+clip+scale / cat: OHE)
+  preprocessing_pipeline     # ColumnTransformer
+         │                   # num: StandardScaler / cat: OneHotEncoder
     train/val/test split
     (estratificado, seed=42)
          │
     ┌────┴────────────────────────────┐
     │  Baselines (sklearn)             │  Dummy, LogReg, RF, GBT
-    │  + RandomizedSearchCV (RF)       │  20 iter, 5-fold, scoring=AUC
+    │  MLflow tracking                 │  params, métricas, artefatos
     └────┬────────────────────────────┘
          │
     ┌────┴────────────────┐
-    │   ChurnMLP (PyTorch) │   [input → 128 → 64 → 32 → 1]
-    │   BCEWithLogitsLoss  │   BatchNorm + Dropout + EarlyStopping
+    │   ChurnMLP (PyTorch) │   [input(59) → 128 → 64 → 32 → 1]
+    │   BCEWithLogitsLoss  │   BatchNorm + Dropout(0.3) + EarlyStopping
     │   + pos_weight       │   Adam + ReduceLROnPlateau
     └────┬────────────────┘
          │
       MLflow tracking (params, métricas, artefatos)
          │
-    FastAPI /predict         # JWT auth + Pydantic validation + latency middleware
-    FastAPI /predict-batch   # Inferência vetorizada (até 1000 clientes)
+    FastAPI                  # JWT + API Key + Rate Limiting + CORS
+    ├── /predict             # predição individual (JWT)
+    ├── /predict-apikey      # predição individual (API Key)
+    └── /predict-batch       # predição em lote até 1000 (JWT)
+         │
+    Docker (multi-stage)     # python:3.12-slim + uv + usuário não-root
+         │
+    GitHub Actions CI/CD     # lint + testes + build + push GHCR
 ```
 
 ---
 
-## Autenticação da API
-
-A API possui dois métodos de autenticação:
+## 🔐 Autenticação da API
 
 ### JWT (usuários autenticados)
 
 ```bash
-# 1. Faz login e obtém o token
+# 1. Login
 curl -X POST "http://localhost:8000/auth/login?username=admin&password=admin123"
+# Retorna: { "access_token": "eyJ...", "token_type": "bearer" }
 
-# Resposta:
-# {
-#   "access_token": "eyJ...",
-#   "token_type": "bearer",
-#   "expires_in": 3600
-# }
-
-# 2. Usa o token nas requisições
+# 2. Predição com token
 curl -X POST http://localhost:8000/predict \
   -H "Authorization: Bearer eyJ..." \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{...payload...}'
 ```
 
 **Usuários disponíveis para teste:**
@@ -180,7 +217,7 @@ curl -X POST http://localhost:8000/predict \
 | `admin` | `admin123` | admin |
 | `user` | `user123` | user |
 
-> Em produção: substitua por banco de dados com senhas hasheadas e gere o `JWT_SECRET_KEY` com `openssl rand -hex 32`.
+> Em produção: banco de dados com senhas hasheadas e `JWT_SECRET_KEY` gerado com `openssl rand -hex 32`.
 
 ### API Key (comunicação entre serviços)
 
@@ -188,55 +225,40 @@ curl -X POST http://localhost:8000/predict \
 curl -X POST http://localhost:8000/predict-apikey \
   -H "X-API-Key: churn-api-key-fiap-2026" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{...payload...}'
 ```
-
-> Em produção: defina `API_KEY` no `.env` com um valor forte gerado por `openssl rand -hex 16`.
 
 ---
 
-## Endpoints da API
+## 🌐 Endpoints da API
 
 | Método | Endpoint | Auth | Descrição |
 |---|---|---|---|
-| GET | `/health` | Público | Status da API e se modelo está carregado |
-| GET | `/ready` | Público | Readiness check — 503 se modelo não carregado |
+| GET | `/health` | Público | Status da API e modelo |
+| GET | `/ready` | Público | Readiness check (503 se modelo não carregado) |
 | POST | `/auth/login` | Público | Login e geração de token JWT |
 | GET | `/auth/me` | JWT | Dados do usuário autenticado |
 | POST | `/predict` | JWT | Predição para um cliente |
 | POST | `/predict-apikey` | API Key | Predição para um cliente (serviços) |
-| POST | `/predict-batch` | JWT | Predição para múltiplos clientes (até 1000) |
+| POST | `/predict-batch` | JWT | Predição em lote (até 1000 clientes) |
 
-### Exemplo de requisição
+### Exemplo de requisição e resposta
 
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "senior_citizen": 0,
-    "tenure": 12,
-    "monthly_charges": 65.5,
-    "total_charges": 786.0,
-    "gender": "Male",
-    "partner": "Yes",
-    "dependents": "No",
-    "phone_service": "Yes",
-    "multiple_lines": "No",
-    "internet_service": "Fiber optic",
-    "online_security": "No",
-    "online_backup": "Yes",
-    "device_protection": "No",
-    "tech_support": "No",
-    "streaming_tv": "No",
-    "streaming_movies": "No",
-    "contract": "Month-to-month",
-    "paperless_billing": "Yes",
+    "senior_citizen": 0, "tenure": 12, "monthly_charges": 65.5,
+    "total_charges": 786.0, "gender": "Male", "partner": "Yes",
+    "dependents": "No", "phone_service": "Yes", "multiple_lines": "No",
+    "internet_service": "Fiber optic", "online_security": "No",
+    "online_backup": "Yes", "device_protection": "No", "tech_support": "No",
+    "streaming_tv": "No", "streaming_movies": "No",
+    "contract": "Month-to-month", "paperless_billing": "Yes",
     "payment_method": "Electronic check"
   }'
 ```
-
-### Exemplo de resposta
 
 ```json
 {
@@ -248,23 +270,41 @@ curl -X POST http://localhost:8000/predict \
 
 ---
 
-## Rate Limiting
+## 🛡️ Rate Limiting
 
 A API limita **100 requisições por 60 segundos** por IP.
-Ao exceder o limite, retorna `429 Too Many Requests`:
-
-```json
-{
-  "detail": "Limite excedido: 100 requisições por 60s",
-  "retry_after": 45
-}
-```
-
-Os headers `X-RateLimit-Limit` e `X-RateLimit-Remaining` são retornados em todas as respostas.
+Ao exceder, retorna `429 Too Many Requests` com `retry_after` em segundos.
+Headers `X-RateLimit-Limit` e `X-RateLimit-Remaining` em todas as respostas.
 
 ---
 
-## Métricas Principais
+## 🐳 Docker
+
+```bash
+# Build
+docker build -t churn-prediction:latest .
+
+# Run
+docker run -p 8000:8000 \
+  -e JWT_SECRET_KEY=<sua-chave> \
+  -e API_KEY=<sua-api-key> \
+  churn-prediction:latest
+
+# Acesse: http://localhost:8000/docs
+```
+
+---
+
+## 🔄 CI/CD
+
+| Workflow | Trigger | O que faz |
+|---|---|---|
+| `ci.yml` | Todo push e PR | Lint (ruff) + 38 testes (pytest) |
+| `cd.yml` | Merge para `main` | Build Docker + push para GHCR |
+
+---
+
+## 📊 Métricas Principais
 
 | Modelo | AUC-ROC | F1 | Recall |
 |---|---|---|---|
@@ -278,27 +318,49 @@ Os headers `X-RateLimit-Limit` e `X-RateLimit-Remaining` são retornados em toda
 
 ---
 
-## Equipe
+## 🧪 Testes
 
-| Nome | RM | E-mail |
-|---|---|---|
-| Anna Luiza de Angelis Souza Freitas | RM375350 | annaluizafreitas17@hotmail.com |
-| Bruno Brito de Souza | RM374808 | brunobrito.learning@gmail.com |
-| Fellipe Resende Bastos | RM373040 | fbastos95@gmail.com |
-| German Eduardo Brunner | RM375046 | brunner.brunner@gmail.com |
-| Marcelo da Cruz Salvador | RM375166 | macrusal@gmail.com |
+38 testes cobrindo: smoke, schema (pandera), API (com JWT), model e preprocessing.
+
+```bash
+make test
+# ou
+uv run pytest tests/ -v
+```
 
 ---
 
-## Etapas do Projeto
+## 👥 Equipe
+
+| Nome | RM | E-mail | Papel                              |
+|---|---|---|------------------------------------|
+| Anna Luiza de Angelis Souza Freitas | RM375350 | annaluizafreitas17@hotmail.com | Dados / Machine Learning Engineering |
+| Bruno Brito de Souza | RM374808 | brunobrito.learning@gmail.com | Dados / Machine Learning Engineering |
+| Fellipe Resende Bastos | RM373040 | fbastos95@gmail.com | Dados / Machine Learning Engineering |
+| German Eduardo Brunner | RM375046 | brunner.brunner@gmail.com | Dados / Machine Learning Engineering |
+| Marcelo da Cruz Salvador | RM375166 | macrusal@gmail.com | Software Engineering |
+
+---
+
+## 📐 Etapas do Projeto
 
 | Etapa | Foco | Status |
 |---|---|---|
 | 1 | EDA + Baselines + MLflow | ✅ Concluída |
 | 2 | MLP PyTorch + comparação de modelos | ✅ Concluída |
 | 3 | Refatoração + FastAPI + testes + Makefile | ✅ Concluída |
-| 4 | Model Card + README + vídeo STAR + deploy | ✅ Concluída |
+| + | Segurança API: JWT + API Key + Rate Limiting + CORS | ✅ Concluída |
+| + | 38 testes: smoke, schema, API (JWT), model, preprocessing | ✅ Concluída |
+| + | Logging estruturado (loguru) + config centralizado | ✅ Concluída |
+| + | Validação de dados com Pandera | ✅ Concluída |
+| 4 | Model Card + README + Docker multi-stage + CI/CD GitHub Actions | ✅ Concluída |
+| + | Docker: multi-stage build com uv + usuário não-root + healthcheck | ✅ Concluída |
+| + | CI: lint + 38 testes automáticos em todo PR (GitHub Actions) | ✅ Concluída |
+| + | CD: build e push automático para GHCR no merge para main | ✅ Concluída |
+| 5 | Deploy AWS ECS Fargate | 🔄 Em andamento |
 
 ---
+
+## 📄 Licença
 
 MIT License
