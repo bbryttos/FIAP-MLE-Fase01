@@ -6,7 +6,7 @@ Uso:
     from src.utils.config import settings
     print(settings.seed)           # 42
     print(settings.model_path)     # models/mlp_churn.pt
-    print(settings.mlflow_uri)     # http://localhost:5000
+    print(settings.mlflow_uri)     # http://localhost:5001
 """
 import random
 from pathlib import Path
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     log_path: Path = Field(default=PROJECT_ROOT / "logs" / "churn_prediction.log")
 
     # MLflow
-    mlflow_tracking_uri: str = Field(default="http://localhost:5000")
+    mlflow_tracking_uri: str = Field(default="http://localhost:5001")
     mlflow_experiment_name: str = Field(default="churn-prediction")
 
     # API
