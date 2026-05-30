@@ -14,8 +14,12 @@ logger = get_logger(__name__)
 RANDOM_STATE = 42
 TARGET_COL = "churn"
 
-# Mapeamento dos nomes originais do CSV para snake_case interno
+# Mapeamento dos nomes originais do CSV para snake_case interno.
+# Suporta dois formatos:
+#   - Kaggle: WA_Fn-UseC_-Telco-Customer-Churn.csv (colunas camelCase/PascalCase)
+#   - IBM extended: Telco_customer_churn.csv (colunas com espaços, título)
 COLUMN_MAP = {
+    # ── Kaggle ────────────────────────────────────────────────────────────────
     "customerID": "customer_id",
     "gender": "gender",
     "SeniorCitizen": "senior_citizen",
@@ -37,6 +41,25 @@ COLUMN_MAP = {
     "MonthlyCharges": "monthly_charges",
     "TotalCharges": "total_charges",
     "Churn": "churn",
+    # ── IBM extended ──────────────────────────────────────────────────────────
+    "CustomerID": "customer_id",
+    "Gender": "gender",
+    "Senior Citizen": "senior_citizen",
+    "Tenure Months": "tenure",
+    "Phone Service": "phone_service",
+    "Multiple Lines": "multiple_lines",
+    "Internet Service": "internet_service",
+    "Online Security": "online_security",
+    "Online Backup": "online_backup",
+    "Device Protection": "device_protection",
+    "Tech Support": "tech_support",
+    "Streaming TV": "streaming_tv",
+    "Streaming Movies": "streaming_movies",
+    "Paperless Billing": "paperless_billing",
+    "Payment Method": "payment_method",
+    "Monthly Charges": "monthly_charges",
+    "Total Charges": "total_charges",
+    "Churn Value": "churn",
 }
 
 # Nomes snake_case (pipeline interno)
@@ -233,7 +256,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = df[col].fillna(mode_val)
                 logger.info("Imputed {} nulls in '{}' with mode '{}'", n_missing, col, mode_val)
 
-    if TARGET_COL in df.columns:
+    if TARGET_COL in df.columns and df[TARGET_COL].dtype == object:
         df[TARGET_COL] = (
             df[TARGET_COL].str.strip().str.lower() == "yes"
         ).astype(int)
