@@ -9,7 +9,13 @@ logger = logging.getLogger(__name__)
 RAW_SCHEMA = DataFrameSchema(
     columns={
         "gender": Column(str, Check.isin(["Male", "Female"])),
-        "senior_citizen": Column(int, Check.isin([0, 1])),
+        "senior_citizen": Column(
+            checks=Check(
+                lambda s: s.astype(str).isin(["0", "1", "Yes", "No"]).all(),
+                error="senior_citizen must be 0/1 (Kaggle) or Yes/No (IBM)",
+            ),
+            nullable=False,
+        ),
         "partner": Column(str, Check.isin(["Yes", "No"])),
         "dependents": Column(str, Check.isin(["Yes", "No"])),
         "tenure": Column(int, Check.ge(0)),
