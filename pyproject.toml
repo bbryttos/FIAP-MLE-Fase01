@@ -37,6 +37,7 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "passlib[bcrypt]>=1.7.4",
     "bcrypt==4.0.1",
+    "prometheus-client>=0.25.0",
 ]
 
 [project.optional-dependencies]
@@ -74,3 +75,6 @@ python_functions = ["test_*"]
 [tool.coverage.run]
 source = ["src"]
 omit = ["tests/*", "notebooks/*"]
+
+[tool.uv]
+torch-backend = "cpu"
