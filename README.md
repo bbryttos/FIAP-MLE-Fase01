@@ -83,7 +83,7 @@ FIAP-MLE-Fase01/
 ## 🚀 Setup Rápido
 
 ### Pré-requisitos
-- Python 3.10, 3.11 ou 3.12 (3.13+ não suportado pelo torch 2.2.x)
+- Python **3.12.2** (versão exata definida em `.python-version`; 3.13+ não suportado pelo torch 2.2.x)
 - [uv](https://docs.astral.sh/uv/) — gerenciador de pacotes
 - Git
 - Make (opcional, mas recomendado)
@@ -107,7 +107,10 @@ pip install uv
 git clone git@github.com:bbryttos/FIAP-MLE-Fase01.git
 cd FIAP-MLE-Fase01
 
-# Cria o ambiente e instala todas as dependências
+# Cria o ambiente com a versão exata do Python (lê .python-version automaticamente)
+uv venv --python 3.12.2
+
+# Instala todas as dependências
 uv sync --extra dev
 
 # Configura as variáveis de ambiente
@@ -117,7 +120,8 @@ cp .env.example .env
 ### Sem uv (alternativa com pip)
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+# Certifique-se de usar Python 3.12.2
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
 pip install -e ".[dev]"
 ```
@@ -268,6 +272,40 @@ curl -X POST http://localhost:8000/predict \
 }
 ```
 
+### Exemplo de requisição batch
+
+O body de `/predict-batch` é um **array JSON direto** (não um objeto com chave):
+
+```bash
+curl -X POST http://localhost:8000/predict-batch \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"senior_citizen": 0, "tenure": 12, "monthly_charges": 65.5, "total_charges": 786.0,
+     "gender": "Male", "partner": "Yes", "dependents": "No", "phone_service": "Yes",
+     "multiple_lines": "No", "internet_service": "Fiber optic", "online_security": "No",
+     "online_backup": "Yes", "device_protection": "No", "tech_support": "No",
+     "streaming_tv": "No", "streaming_movies": "No", "contract": "Month-to-month",
+     "paperless_billing": "Yes", "payment_method": "Electronic check"},
+    {"senior_citizen": 1, "tenure": 60, "monthly_charges": 45.0, "total_charges": 2700.0,
+     "gender": "Female", "partner": "No", "dependents": "No", "phone_service": "Yes",
+     "multiple_lines": "Yes", "internet_service": "DSL", "online_security": "Yes",
+     "online_backup": "No", "device_protection": "Yes", "tech_support": "No",
+     "streaming_tv": "Yes", "streaming_movies": "No", "contract": "Two year",
+     "paperless_billing": "No", "payment_method": "Bank transfer (automatic)"}
+  ]'
+```
+
+```json
+{
+  "predictions": [
+    {"churn_probability": 0.8131, "prediction": 1, "risk_level": "high"},
+    {"churn_probability": 0.1243, "prediction": 0, "risk_level": "low"}
+  ],
+  "count": 2
+}
+```
+
 ---
 
 ## 🛡️ Rate Limiting
@@ -290,19 +328,21 @@ docker run -p 8000:8000 \
   churn-prediction:latest
 ```
 
-### Stack completa com Prometheus e Grafana
+### Stack completa com MLflow, Prometheus e Grafana
 
 ```bash
 docker-compose up -d
 ```
 
-| Serviço | URL |
-|---|---|
-| API | http://localhost:8000/docs |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3000 (admin/admin123) |
+| Serviço | URL | Descrição |
+| --- | --- | --- |
+| API | <http://localhost:8000/docs> | FastAPI + Swagger UI |
+| MLflow UI | <http://localhost:5001> | Experimentos, métricas e artefatos |
+| Prometheus | <http://localhost:9090> | Coleta de métricas |
+| Grafana | <http://localhost:3000> (admin/admin123) | Dashboards |
 
-> **Nota:** Os arquivos de configuração (`monitoring/prometheus.yml`, `monitoring/grafana/`) são versionados.
+> **Nota:** A porta 5001 é usada para o MLflow para evitar conflito com o AirPlay Receiver do macOS (porta 5000).
+> Os arquivos de configuração (`monitoring/prometheus.yml`, `monitoring/grafana/`) são versionados.
 > Os dados gerados pelo Prometheus e Grafana (`monitoring/prometheus/data/`, `monitoring/grafana/data/`) estão no `.gitignore`.
 
 ### Performance de build
@@ -322,7 +362,7 @@ O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
 
 | Workflow | Trigger | O que faz |
 |---|---|---|
-| `ci.yml` | Todo push e PR | Lint (ruff) + 38 testes (pytest) |
+| `ci.yml` | Todo push e PR | Lint (ruff) + 43 testes (pytest) |
 | `cd.yml` | Merge para `main` | Build Docker + push para GHCR |
 
 ---
@@ -343,13 +383,20 @@ O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
 
 ## 🧪 Testes
 
-38 testes cobrindo: smoke, schema (pandera), API (com JWT), model e preprocessing.
+43 testes passando, cobrindo: smoke, schema (pandera), API (JWT + API Key + batch), model e preprocessing.
 
 ```bash
 make test
 # ou
 uv run pytest tests/ -v
 ```
+
+### Warnings conhecidos
+
+| Warning | Origem | Status |
+| --- | --- | --- |
+| `DeprecationWarning: 'crypt' is deprecated` | `passlib` (lib de terceiros) | Aguardando correção upstream |
+| `DeprecationWarning: datetime.utcnow()` | `src/api/app.py` | Corrigido — substituído por `datetime.now(timezone.utc)` |
 
 ---
 
@@ -373,13 +420,13 @@ uv run pytest tests/ -v
 | 2 | MLP PyTorch + comparação de modelos | ✅ Concluída |
 | 3 | Refatoração + FastAPI + testes + Makefile | ✅ Concluída |
 | + | Segurança API: JWT + API Key + Rate Limiting + CORS | ✅ Concluída |
-| + | 38 testes: smoke, schema, API (JWT), model, preprocessing | ✅ Concluída |
+| + | 43 testes: smoke, schema, API (JWT), model, preprocessing | ✅ Concluída |
 | + | Logging estruturado (loguru) + config centralizado | ✅ Concluída |
 | + | Validação de dados com Pandera | ✅ Concluída |
 | 4 | Model Card + README + Docker multi-stage + CI/CD GitHub Actions | ✅ Concluída |
 | + | Docker: multi-stage build com uv + usuário não-root + healthcheck | ✅ Concluída |
 | + | Docker: cache de build (19min → 1.6s na segunda execução) | ✅ Concluída |
-| + | CI: lint + 38 testes automáticos em todo PR (GitHub Actions) | ✅ Concluída |
+| + | CI: lint + 43 testes automáticos em todo PR (GitHub Actions) | ✅ Concluída |
 | + | CD: build e push automático para GHCR no merge para main | ✅ Concluída |
 | + | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID | ✅ Concluída |
 | + | Docker Compose: API + Prometheus + Grafana | ✅ Concluída |
