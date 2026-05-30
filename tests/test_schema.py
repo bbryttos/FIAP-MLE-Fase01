@@ -12,7 +12,7 @@ from src.data.preprocessing import (
     load_data,
 )
 
-DATA_PATH = os.getenv("DATA_PATH", "data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+DATA_PATH = os.getenv("DATA_PATH", "data/raw/Telco_customer_churn.csv")
 
 RAW_SCHEMA = pa.DataFrameSchema(
     {

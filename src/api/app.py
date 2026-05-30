@@ -20,10 +20,11 @@ import time
 import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any
 
+import bcrypt
 import joblib
 import numpy as np
 import pandas as pd
@@ -33,7 +34,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     Counter,
@@ -63,10 +63,9 @@ API_KEY = getattr(settings, "api_key", "churn-api-key-fiap-2026")
 RATE_LIMIT_REQUESTS = getattr(settings, "rate_limit_requests", 100)
 RATE_LIMIT_WINDOW = getattr(settings, "rate_limit_window", 60)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 USERS_DB = {
-    "admin": {"password": pwd_context.hash("admin123"), "role": "admin"},
-    "user": {"password": pwd_context.hash("user123"), "role": "user"},
+    "admin": {"password": bcrypt.hashpw(b"admin123", bcrypt.gensalt()), "role": "admin"},
+    "user": {"password": bcrypt.hashpw(b"user123", bcrypt.gensalt()), "role": "user"},
 }
 
 # ── Estado da aplicação ───────────────────────────────────────────────────────
@@ -269,7 +268,7 @@ async def observability_middleware(request: Request, call_next):
 
 # ── Funções JWT ───────────────────────────────────────────────────────────────
 def create_access_token(username: str, role: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
     payload = {"sub": username, "role": role, "exp": expire}
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
@@ -375,7 +374,7 @@ async def metrics():
 async def login(username: str, password: str):
     """Login e geração de token JWT. Usuários: admin/admin123, user/user123"""
     user = USERS_DB.get(username)
-    if not user or not pwd_context.verify(password, user["password"]):
+    if not user or not bcrypt.checkpw(password.encode(), user["password"]):
         LOGIN_ATTEMPTS.labels(status="failed").inc()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário ou senha incorretos.")
     LOGIN_ATTEMPTS.labels(status="success").inc()

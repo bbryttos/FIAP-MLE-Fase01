@@ -38,7 +38,7 @@ def client():
     from unittest.mock import MagicMock
 
     mock_pipeline = MagicMock()
-    mock_pipeline.transform.return_value = np.zeros((1, 30), dtype=np.float32)
+    mock_pipeline.transform.side_effect = lambda df: np.zeros((len(df), 30), dtype=np.float32)
 
     mock_model = ChurnMLP(input_dim=30, hidden_dims=[32, 16])
     mock_model.eval()
@@ -137,4 +137,47 @@ def test_auth_login_valid_credentials(client):
 
 def test_auth_login_invalid_credentials(client):
     response = client.post("/auth/login?username=admin&password=wrong")
+    assert response.status_code == 401
+
+
+def test_predict_apikey_valid(client):
+    response = client.post(
+        "/predict-apikey",
+        json=VALID_PAYLOAD,
+        headers={"X-API-Key": "churn-api-key-fiap-2026"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "churn_probability" in data
+    assert data["prediction"] in {0, 1}
+
+
+def test_predict_apikey_invalid_key_returns_401(client):
+    response = client.post(
+        "/predict-apikey",
+        json=VALID_PAYLOAD,
+        headers={"X-API-Key": "wrong-key"},
+    )
+    assert response.status_code == 401
+
+
+def test_predict_batch_valid(client):
+    response = client.post(
+        "/predict-batch",
+        json=[VALID_PAYLOAD, VALID_PAYLOAD],
+        headers=AUTH_HEADERS,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 2
+    assert len(data["predictions"]) == 2
+
+
+def test_predict_batch_empty_returns_422(client):
+    response = client.post("/predict-batch", json=[], headers=AUTH_HEADERS)
+    assert response.status_code == 422
+
+
+def test_predict_batch_without_token_returns_401(client):
+    response = client.post("/predict-batch", json=[VALID_PAYLOAD])
     assert response.status_code == 401
