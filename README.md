@@ -25,7 +25,7 @@ boas práticas de Machine Learning Engineering:
 - **Serving:** API REST com FastAPI + Pydantic (single e batch inference)
 - **Segurança:** JWT + API Key + Rate Limiting + CORS
 - **Monitoramento:** Drift detection com KS test + PSI
-- **Deploy:** Docker multi-stage + CI/CD via GitHub Actions + AWS ECS Fargate (bônus)
+- **Deploy:** Docker multi-stage + CI/CD via GitHub Actions + AWS ECS Fargate
 
 ---
 
@@ -280,18 +280,41 @@ Headers `X-RateLimit-Limit` e `X-RateLimit-Remaining` em todas as respostas.
 
 ## 🐳 Docker
 
-```bash
-# Build
-docker build -t churn-prediction:latest .
+### Build e execução simples
 
-# Run
+```bash
+docker build -t churn-prediction:latest .
 docker run -p 8000:8000 \
   -e JWT_SECRET_KEY=<sua-chave> \
   -e API_KEY=<sua-api-key> \
   churn-prediction:latest
-
-# Acesse: http://localhost:8000/docs
 ```
+
+### Stack completa com Prometheus e Grafana
+
+```bash
+docker-compose up -d
+```
+
+| Serviço | URL |
+|---|---|
+| API | http://localhost:8000/docs |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin/admin123) |
+
+> **Nota:** Os arquivos de configuração (`monitoring/prometheus.yml`, `monitoring/grafana/`) são versionados.
+> Os dados gerados pelo Prometheus e Grafana (`monitoring/prometheus/data/`, `monitoring/grafana/data/`) estão no `.gitignore`.
+
+### Performance de build
+
+O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
+
+| Execução | Tempo |
+|---|---|
+| Primeira (cache vazio) | ~19 minutos |
+| Subsequentes (cache populado) | ~2 segundos |
+
+> O cache é mantido localmente pelo Docker. No CI/CD o cache é gerenciado via GitHub Actions cache.
 
 ---
 
@@ -355,8 +378,11 @@ uv run pytest tests/ -v
 | + | Validação de dados com Pandera | ✅ Concluída |
 | 4 | Model Card + README + Docker multi-stage + CI/CD GitHub Actions | ✅ Concluída |
 | + | Docker: multi-stage build com uv + usuário não-root + healthcheck | ✅ Concluída |
+| + | Docker: cache de build (19min → 1.6s na segunda execução) | ✅ Concluída |
 | + | CI: lint + 38 testes automáticos em todo PR (GitHub Actions) | ✅ Concluída |
 | + | CD: build e push automático para GHCR no merge para main | ✅ Concluída |
+| + | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID | ✅ Concluída |
+| + | Docker Compose: API + Prometheus + Grafana | ✅ Concluída |
 | 5 | Deploy AWS ECS Fargate | 🔄 Em andamento |
 
 ---
