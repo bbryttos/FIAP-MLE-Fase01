@@ -14,29 +14,23 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copia arquivos de dependências
 COPY pyproject.toml uv.lock ./
 
-# Instala apenas dependências de produção (sem [dev])
-RUN uv sync --no-dev --frozen
+# Instala apenas dependências de produção (sem [dev]) com cache do Docker
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev --frozen
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-# Copia o ambiente virtual do builder
 COPY --from=builder /app/.venv /app/.venv
-
-# Copia o código fonte
 COPY src/ ./src/
 COPY pyproject.toml ./
-
-# Copia os artefatos do modelo
 COPY models/ ./models/
 
-# Usuário não-root por segurança
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Adiciona o venv ao PATH
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -44,7 +38,6 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-# Healthcheck — verifica se a API está respondendo
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
