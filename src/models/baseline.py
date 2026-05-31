@@ -25,7 +25,16 @@ SCORING = ["accuracy", "f1", "precision", "recall", "roc_auc"]
 
 
 def get_baselines() -> dict:
-    """Retorna dicionário nome → estimador para treino independente do pipeline."""
+    """Retorna dicionário nome → estimador para treino independente do pipeline.
+
+    Returns:
+        Dicionário com os classificadores baseline instanciados e prontos para treino.
+
+    Example:
+        >>> baselines = get_baselines()
+        >>> for name, clf in baselines.items():
+        ...     clf.fit(X_train, y_train)
+    """
     return {
         "dummy": DummyClassifier(strategy="stratified", random_state=RANDOM_STATE),
         "logistic_regression": LogisticRegression(
@@ -45,7 +54,20 @@ def evaluate_model(
     y_pred: np.ndarray,
     y_proba: np.ndarray,
 ) -> dict[str, float]:
-    """Calcula métricas completas incluindo PR-AUC e componentes da matriz de confusão."""
+    """Calcula métricas completas incluindo PR-AUC e componentes da matriz de confusão.
+
+    Args:
+        y_true: Labels reais com shape (n_samples,).
+        y_pred: Predições binárias com shape (n_samples,).
+        y_proba: Probabilidades da classe positiva com shape (n_samples,).
+
+    Returns:
+        Dicionário com accuracy, roc_auc, pr_auc, f1, precision, recall, tp, fp, tn, fn.
+
+    Example:
+        >>> metrics = evaluate_model(y_test, y_pred, y_prob)
+        >>> print(f"F1: {metrics['f1']:.4f} | AUC: {metrics['roc_auc']:.4f}")
+    """
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -61,8 +83,21 @@ def evaluate_model(
     }
 
 
-# Alias retrocompatível — mantém interface dos testes existentes
 def compute_metrics(y_true, y_pred, y_prob=None) -> dict:
+    """Alias retrocompatível para evaluate_model(). Calcula métricas de classificação.
+
+    Mantém a interface original usada pelos testes existentes. Para novas
+    implementações, prefira evaluate_model() que retorna métricas mais completas.
+
+    Args:
+        y_true: Labels reais.
+        y_pred: Predições binárias.
+        y_prob: Probabilidades da classe positiva (opcional). Se fornecido,
+                inclui auc_roc e pr_auc no resultado.
+
+    Returns:
+        Dicionário com accuracy, f1, precision, recall e opcionalmente auc_roc e pr_auc.
+    """
     metrics = {
         "accuracy": accuracy_score(y_true, y_pred),
         "f1": f1_score(y_true, y_pred),
@@ -84,6 +119,28 @@ def train_baseline(
     model_name: str,
     params: dict | None = None,
 ) -> dict:
+    """Treina um baseline com cross-validation e loga métricas no MLflow.
+
+    Executa validação cruzada estratificada com CV_FOLDS folds, treina o modelo
+    no conjunto completo de treino, avalia no conjunto de teste e registra
+    todos os resultados no MLflow como nested run.
+
+    Args:
+        pipeline: Pipeline sklearn completo (pré-processamento + modelo).
+        X_train: Features de treino.
+        y_train: Labels de treino.
+        X_test: Features de teste.
+        y_test: Labels de teste.
+        model_name: Nome do modelo para identificação no MLflow.
+        params: Hiperparâmetros adicionais para logar no MLflow.
+
+    Returns:
+        Dicionário com 'pipeline' (modelo treinado) e 'metrics' (métricas de teste).
+
+    Example:
+        >>> result = train_baseline(pipeline, X_train, y_train, X_test, y_test, "logistic_regression")
+        >>> print(f"F1: {result['metrics']['f1']:.4f}")
+    """
     import mlflow
     import mlflow.sklearn
 
@@ -117,10 +174,22 @@ def train_baseline(
 
 
 def build_baselines() -> list:
-    """Retorna lista de (nome, pipeline, params) com feature engineering incluso."""
+    """Retorna lista de (nome, pipeline, params) com feature engineering incluso.
+
+    Cada pipeline combina o pré-processamento completo (build_full_pipeline)
+    com um classificador baseline, pronto para treino direto nos dados brutos.
+
+    Returns:
+        Lista de tuplas (nome, pipeline, params) para cada baseline configurado.
+
+    Example:
+        >>> for name, pipeline, params in build_baselines():
+        ...     result = train_baseline(pipeline, X_train, y_train, X_test, y_test, name, params)
+    """
     from src.data.preprocessing import build_full_pipeline
 
     def _pipeline(classifier) -> Pipeline:
+        """Constrói pipeline com pré-processamento + classificador."""
         return Pipeline([("pre", build_full_pipeline()), ("model", classifier)])
 
     return [
