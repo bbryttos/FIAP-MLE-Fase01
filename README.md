@@ -418,6 +418,21 @@ O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
 
 ---
 
+## ☁️ Deploy AWS com Terraform (sem hardcode de credenciais)
+
+Foi adicionada uma base de IaC em `infra/terraform` para provisionar o stack minimo da API:
+
+- VPC + subnets publicas + security groups
+- ECR + ECS Fargate + ALB + API Gateway HTTP
+- CloudWatch Logs
+
+Para manter o `README` enxuto, o passo a passo completo (credenciais sem hardcode, `terraform init/plan/apply`, push para ECR e validacao) ficou em:
+
+- `docs/aws_terraform_deploy.md`
+- `infra/terraform/README.md`
+
+---
+
 ## 📊 Métricas Principais
 
 | Modelo | AUC-ROC | F1 | Recall |
