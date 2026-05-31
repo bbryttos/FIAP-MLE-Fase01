@@ -135,10 +135,10 @@ uv run python -c "from src.utils.config import settings; print('Seed:', settings
 
 ### Dataset
 
-Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) e coloque em:
+Baixe o dataset [Telco Customer Churn (IBM)](https://www.kaggle.com/datasets/yeanzc/telco-customer-churn-ibm-dataset) e coloque em:
 
 ```
-data/raw/WA_Fn-UseC_-Telco-Customer-Churn.csv
+data/raw/Telco_customer_churn.csv
 ```
 
 ---
@@ -316,6 +316,32 @@ Headers `X-RateLimit-Limit` e `X-RateLimit-Remaining` em todas as respostas.
 
 ---
 
+## 🔎 Observabilidade
+
+A API expõe métricas no formato Prometheus e rastreamento por requisição:
+
+```bash
+# Verifica métricas
+curl http://localhost:8000/metrics | grep churn_
+```
+
+| Métrica | Tipo | Descrição |
+|---|---|---|
+| `churn_predictions_total` | Counter | Total de predições por auth_method e risk_level |
+| `churn_prediction_latency_seconds` | Histogram | Latência das predições |
+| `churn_request_latency_seconds` | Histogram | Latência total das requisições |
+| `churn_requests_total` | Counter | Total de requisições por método, endpoint e status |
+| `churn_model_loaded` | Gauge | Indica se o modelo está carregado (1=sim, 0=não) |
+| `churn_login_attempts_total` | Counter | Tentativas de login por status (success/failed) |
+| `churn_rate_limit_hits_total` | Counter | Requisições bloqueadas por rate limiting |
+| `churn_prediction_probability` | Histogram | Distribuição das probabilidades de churn preditas |
+
+Todas as respostas incluem os headers:
+- `X-Trace-ID` — identificador único por requisição para rastreamento end-to-end
+- `X-Latency-Ms` — latência da requisição em milissegundos
+
+---
+
 ## 🐳 Docker
 
 ### Build e execução simples
@@ -430,6 +456,7 @@ uv run pytest tests/ -v
 | + | CD: build e push automático para GHCR no merge para main | ✅ Concluída |
 | + | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID | ✅ Concluída |
 | + | Docker Compose: API + Prometheus + Grafana | ✅ Concluída |
+| + | Docstrings completas: modelos, treino e utilitários (Aula 3 — Bibliotecas Internas) | ✅ Concluída |
 | 5 | Deploy AWS ECS Fargate | 🔄 Em andamento |
 
 ---

@@ -12,6 +12,22 @@ torch.manual_seed(SEED)
 
 
 class ChurnMLP(nn.Module):
+    """Rede neural MLP para predição de churn.
+
+    Arquitetura: camadas densas com BatchNorm, ReLU e Dropout.
+    Saída: logit escalar (use sigmoid para obter probabilidade).
+
+    Args:
+        input_dim: Dimensão do vetor de entrada (número de features).
+        hidden_dims: Lista com o tamanho de cada camada oculta.
+        dropout: Taxa de dropout aplicada após cada camada oculta.
+
+    Example:
+        >>> model = ChurnMLP(input_dim=59, hidden_dims=[128, 64, 32])
+        >>> x = torch.randn(16, 59)
+        >>> logits = model(x)  # shape: (16,)
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -36,6 +52,14 @@ class ChurnMLP(nn.Module):
         self.network = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Executa o forward pass da rede neural.
+
+        Args:
+            x: Tensor de entrada com shape (batch_size, input_dim).
+
+        Returns:
+            Logits com shape (batch_size,). Aplique sigmoid para obter probabilidades.
+        """
         return self.network(x).squeeze(1)
 
 
@@ -44,6 +68,24 @@ MLP = ChurnMLP
 
 
 class EarlyStopping:
+    """Implementa parada antecipada do treinamento baseada na loss de validação.
+
+    Monitora a loss de validação a cada epoch e interrompe o treinamento
+    quando não há melhora por `patience` epochs consecutivos. Salva o
+    melhor estado do modelo automaticamente.
+
+    Args:
+        patience: Número de epochs sem melhora antes de parar.
+        min_delta: Melhora mínima para ser considerada como progresso.
+
+    Example:
+        >>> stopper = EarlyStopping(patience=10)
+        >>> for epoch in range(100):
+        ...     should_stop = stopper.step(val_loss, model)
+        ...     if should_stop:
+        ...         break
+    """
+
     def __init__(self, patience: int = 10, min_delta: float = 1e-4):
         self.patience = patience
         self.min_delta = min_delta
@@ -52,6 +94,15 @@ class EarlyStopping:
         self.best_state: dict | None = None
 
     def step(self, val_loss: float, model: nn.Module) -> bool:
+        """Verifica critério de parada e salva o melhor estado do modelo.
+
+        Args:
+            val_loss: Loss de validação da epoch atual.
+            model: Modelo PyTorch em treinamento.
+
+        Returns:
+            True se o treinamento deve ser interrompido, False caso contrário.
+        """
         if val_loss < self.best_loss - self.min_delta:
             self.best_loss = val_loss
             self.counter = 0
@@ -74,6 +125,32 @@ def train_mlp(
     patience: int = 15,
     device: str = "cpu",
 ) -> tuple["ChurnMLP", dict[str, list[float]]]:
+    """Treina a rede MLP com early stopping e pos_weight para classes desbalanceadas.
+
+    Utiliza BCEWithLogitsLoss com pos_weight calculado automaticamente a partir
+    da proporção de classes no conjunto de treino, Adam como otimizador e
+    ReduceLROnPlateau para ajuste dinâmico da taxa de aprendizado.
+
+    Args:
+        X_train: Features de treino com shape (n_samples, n_features).
+        y_train: Labels de treino com shape (n_samples,). Valores binários (0 ou 1).
+        X_val: Features de validação.
+        y_val: Labels de validação.
+        hidden_dims: Tamanho de cada camada oculta. Default: [64, 32, 16].
+        lr: Taxa de aprendizado inicial do Adam.
+        batch_size: Tamanho do mini-batch.
+        max_epochs: Número máximo de epochs de treinamento.
+        dropout: Taxa de dropout nas camadas ocultas.
+        patience: Epochs sem melhora para ativar early stopping.
+        device: Dispositivo PyTorch ('cpu' ou 'cuda').
+
+    Returns:
+        Tupla (modelo treinado com melhor estado, histórico de losses por epoch).
+
+    Example:
+        >>> model, history = train_mlp(X_train, y_train, X_val, y_val)
+        >>> print(f"Best val_loss: {min(history['val_loss']):.4f}")
+    """
     if hidden_dims is None:
         hidden_dims = [64, 32, 16]
 
@@ -133,6 +210,23 @@ def train_mlp(
 
 
 def predict_proba(model: ChurnMLP, X: np.ndarray, device: str = "cpu") -> np.ndarray:
+    """Retorna probabilidades de churn para as amostras de entrada.
+
+    Coloca o modelo em modo de avaliação, desativa gradientes e aplica
+    sigmoid sobre os logits para obter probabilidades entre 0 e 1.
+
+    Args:
+        model: Modelo ChurnMLP treinado.
+        X: Features com shape (n_samples, n_features).
+        device: Dispositivo PyTorch ('cpu' ou 'cuda').
+
+    Returns:
+        Array numpy com probabilidades de churn, shape (n_samples,).
+
+    Example:
+        >>> probs = predict_proba(model, X_test)
+        >>> predictions = (probs >= 0.5).astype(int)
+    """
     model.eval()
     X_t = torch.tensor(X, dtype=torch.float32).to(device)
     with torch.no_grad():
@@ -141,7 +235,28 @@ def predict_proba(model: ChurnMLP, X: np.ndarray, device: str = "cpu") -> np.nda
 
 
 class MLPTrainer:
-    """Wrapper de treino compatível com a interface original (testes existentes)."""
+    """Wrapper de treino compatível com a interface original (testes existentes).
+
+    Encapsula o ciclo de treino do ChurnMLP expondo uma interface sklearn-like
+    com métodos fit(), predict_proba() e predict(). Facilita integração com
+    pipelines de avaliação e testes automatizados.
+
+    Args:
+        input_dim: Dimensão do vetor de entrada.
+        hidden_dims: Tamanho de cada camada oculta. Default: [64, 32, 16].
+        dropout_rate: Taxa de dropout nas camadas ocultas.
+        lr: Taxa de aprendizado inicial.
+        batch_size: Tamanho do mini-batch.
+        max_epochs: Número máximo de epochs.
+        patience: Epochs sem melhora para early stopping.
+        device: Dispositivo PyTorch. Auto-detecta CUDA se disponível.
+        random_state: Seed para reprodutibilidade.
+
+    Example:
+        >>> trainer = MLPTrainer(input_dim=59, hidden_dims=[128, 64, 32])
+        >>> trainer.fit(X_train, y_train, X_val, y_val)
+        >>> probs = trainer.predict_proba(X_test)
+    """
 
     def __init__(
         self,
@@ -170,6 +285,17 @@ class MLPTrainer:
         self.history: dict[str, list] = {"train_loss": [], "val_loss": []}
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray) -> "MLPTrainer":
+        """Treina o modelo com os dados fornecidos.
+
+        Args:
+            X_train: Features de treino.
+            y_train: Labels de treino (binários).
+            X_val: Features de validação para early stopping.
+            y_val: Labels de validação.
+
+        Returns:
+            Self para encadeamento de chamadas.
+        """
         self.model, self.history = train_mlp(
             X_train, y_train.astype(np.float32),
             X_val, y_val.astype(np.float32),
@@ -184,8 +310,25 @@ class MLPTrainer:
         return self
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Retorna probabilidades de churn. Requer chamada prévia de fit().
+
+        Args:
+            X: Features com shape (n_samples, n_features).
+
+        Returns:
+            Array com probabilidades de churn, shape (n_samples,).
+        """
         assert self.model is not None, "Call fit() first"
         return predict_proba(self.model, X, device=self._device)
 
     def predict(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+        """Retorna predições binárias usando o threshold informado.
+
+        Args:
+            X: Features com shape (n_samples, n_features).
+            threshold: Limiar de decisão para classificação positiva.
+
+        Returns:
+            Array de inteiros (0 ou 1) com shape (n_samples,).
+        """
         return (self.predict_proba(X) >= threshold).astype(int)
