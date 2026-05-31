@@ -2,7 +2,7 @@
 Serviço de predição de churn: encapsula preprocessing + inferência + classificação de risco.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
