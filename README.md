@@ -35,46 +35,53 @@ boas práticas de Machine Learning Engineering:
 FIAP-MLE-Fase01/
 ├── src/
 │   ├── api/
-│   │   ├── app.py          # FastAPI — /predict, /predict-batch, /health, /ready, /auth/*
-│   │   └── schemas.py      # Schemas Pydantic (entrada e saída)
+│   │   ├── app.py               # FastAPI — controller: roteamento + middlewares (~130 linhas)
+│   │   ├── schemas.py           # Schemas Pydantic (entrada e saída)
+│   │   ├── security.py          # JWT, API Key, InMemoryUserRepository, rate limiting
+│   │   ├── metrics.py           # Objetos Prometheus (Counter, Histogram, Gauge)
+│   │   ├── model_loader.py      # ModelRepository protocol + LocalModelRepository
+│   │   └── prediction_service.py # PredictionService + RiskClassifier (Strategy)
 │   ├── data/
-│   │   ├── preprocessing.py # Transformers sklearn + load_data()
-│   │   └── schema.py        # Validação Pandera do dataset
+│   │   ├── preprocessing.py     # load_data(), clean_data(), split_data(), pipelines
+│   │   ├── transformers.py      # OutlierClipper, TotalChargesImputer, BinaryEncoder
+│   │   └── schema.py            # Validação Pandera do dataset
 │   ├── features/
-│   │   └── engineering.py   # Feature engineering
+│   │   └── engineering.py       # Feature engineering
 │   ├── models/
-│   │   ├── baseline.py      # DummyClassifier, LogReg, RF, GBT
-│   │   └── mlp.py           # ChurnMLP (PyTorch) + EarlyStopping
+│   │   ├── baseline.py          # DummyClassifier, LogReg, RF, GBT + train_baseline()
+│   │   ├── evaluation.py        # evaluate_model(), compute_metrics()
+│   │   └── mlp.py               # ChurnMLP (PyTorch) + EarlyStopping + MLPTrainer
 │   ├── monitoring/
-│   │   └── drift_detection.py # KS test + PSI para monitoramento pós-deploy
+│   │   └── drift_detection.py   # KS test + PSI para monitoramento pós-deploy
 │   ├── training/
-│   │   └── train.py         # Script de treino com MLflow
+│   │   └── train.py             # Pipeline de treino com MLflow (5 etapas compostas)
 │   └── utils/
-│       ├── config.py        # Configuração centralizada (pydantic-settings)
-│       └── logger.py        # Logging estruturado (loguru)
+│       ├── config.py            # Configuração centralizada (pydantic-settings)
+│       └── logger.py            # Logging estruturado (loguru)
 ├── tests/
-│   ├── test_api.py          # Testes da API FastAPI (com JWT)
-│   ├── test_model.py        # Testes do MLP PyTorch
-│   ├── test_preprocessing.py # Testes de pré-processamento
-│   ├── test_schema.py       # Validação do schema do dataset (pandera)
-│   └── test_smoke.py        # Smoke tests: pipeline e MLP
+│   ├── test_api.py              # Testes da API FastAPI (com JWT)
+│   ├── test_model.py            # Testes do MLP PyTorch
+│   ├── test_preprocessing.py    # Testes de pré-processamento
+│   ├── test_schema.py           # Validação do schema do dataset (pandera)
+│   └── test_smoke.py            # Smoke tests: pipeline e MLP
 ├── notebooks/
-│   └── 01_eda_baselines.ipynb # EDA + baselines
+│   └── 01_eda_baselines.ipynb   # EDA + baselines
 ├── data/
-│   ├── raw/                 # dataset original (não versionado)
-│   └── processed/           # features processadas (não versionado)
-├── models/                  # artefatos treinados (não versionados)
+│   ├── raw/                     # dataset original (não versionado)
+│   └── processed/               # features processadas (não versionado)
+├── models/                      # artefatos treinados (não versionados)
 ├── docs/
-│   ├── model_card.md        # Model Card: performance, limitações e vieses
-│   └── monitoring_plan.md   # Plano de monitoramento
+│   ├── model_card.md            # Model Card: performance, limitações e vieses
+│   ├── monitoring_plan.md       # Plano de monitoramento
+│   └── refactoring_report.md    # Relatório de refatoração SOLID
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml           # CI: lint + testes em todo PR
-│       └── cd.yml           # CD: build e push Docker para GHCR
-├── pyproject.toml           # dependências + config de ferramentas (single source of truth)
-├── Makefile                 # atalhos de comandos
-├── Dockerfile               # imagem multi-stage para produção
-├── .env.example             # template de variáveis de ambiente
+│       ├── ci.yml               # CI: lint + testes em todo PR
+│       └── cd.yml               # CD: build e push Docker para GHCR
+├── pyproject.toml               # dependências + config de ferramentas (single source of truth)
+├── Makefile                     # atalhos de comandos
+├── Dockerfile                   # imagem multi-stage para produção
+├── .env.example                 # template de variáveis de ambiente
 └── README.md
 ```
 
@@ -166,16 +173,17 @@ data/raw/Telco_customer_churn.csv
 ```
 WA_Fn-UseC_-Telco-Customer-Churn.csv
          │
-    load_data()              # renomeia colunas, separa X e y
+    load_data() + clean_data()     # renomeia colunas, imputa, normaliza
          │
-  preprocessing_pipeline     # ColumnTransformer
-         │                   # num: StandardScaler / cat: OneHotEncoder
+    build_full_pipeline()          # FeatureEngineer → ColumnTransformer
+         │                         # num: StandardScaler / cat: OneHotEncoder
     train/val/test split
     (estratificado, seed=42)
          │
     ┌────┴────────────────────────────┐
     │  Baselines (sklearn)             │  Dummy, LogReg, RF, GBT
-    │  MLflow tracking                 │  params, métricas, artefatos
+    │  evaluation.py                   │  evaluate_model(), compute_metrics()
+    │  MLflow nested runs              │  params, métricas, artefatos
     └────┬────────────────────────────┘
          │
     ┌────┴────────────────┐
@@ -186,7 +194,11 @@ WA_Fn-UseC_-Telco-Customer-Churn.csv
          │
       MLflow tracking (params, métricas, artefatos)
          │
-    FastAPI                  # JWT + API Key + Rate Limiting + CORS
+    FastAPI (app.py — controller)
+    ├── security.py          # JWT + API Key + InMemoryUserRepository
+    ├── metrics.py           # Prometheus: 8 métricas
+    ├── model_loader.py      # ModelRepository → LocalModelRepository
+    ├── prediction_service.py # PredictionService + RiskClassifier
     ├── /predict             # predição individual (JWT)
     ├── /predict-apikey      # predição individual (API Key)
     └── /predict-batch       # predição em lote até 1000 (JWT)
@@ -422,7 +434,7 @@ uv run pytest tests/ -v
 | Warning | Origem | Status |
 | --- | --- | --- |
 | `DeprecationWarning: 'crypt' is deprecated` | `passlib` (lib de terceiros) | Aguardando correção upstream |
-| `DeprecationWarning: datetime.utcnow()` | `src/api/app.py` | Corrigido — substituído por `datetime.now(timezone.utc)` |
+| `DeprecationWarning: datetime.utcnow()` | `src/api/security.py` | Corrigido — substituído por `datetime.now(timezone.utc)` |
 
 ---
 
@@ -457,6 +469,9 @@ uv run pytest tests/ -v
 | + | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID | ✅ Concluída |
 | + | Docker Compose: API + Prometheus + Grafana | ✅ Concluída |
 | + | Docstrings completas: modelos, treino e utilitários (Aula 3 — Bibliotecas Internas) | ✅ Concluída |
+| + | Refatoração SOLID: SRP, OCP, DIP, ISP — 6 módulos extraídos, app.py 478→130 linhas | ✅ Concluída |
+| + | Design Patterns: Strategy (RiskClassifier), Repository (UserRepo + ModelRepo), Facade (PredictionService) | ✅ Concluída |
+| + | Cobertura de testes: 43/43 mantidos, 70% de cobertura medida | ✅ Concluída |
 | 5 | Deploy AWS ECS Fargate | 🔄 Em andamento |
 
 ---
