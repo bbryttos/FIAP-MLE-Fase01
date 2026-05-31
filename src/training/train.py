@@ -1,3 +1,19 @@
+"""
+Pipeline de treinamento — FIAP Tech Challenge Fase 1.
+
+Executa o ciclo completo de treino:
+    1. Carrega e valida o dataset com Pandera
+    2. Pré-processa e divide em treino/val/teste
+    3. Treina baselines (DummyClassifier, LogReg, RF, GBT) com cross-validation
+    4. Treina MLP PyTorch com early stopping
+    5. Loga todos os experimentos no MLflow
+    6. Salva artefatos em models/
+
+Uso:
+    uv run python -m src.training.train
+    # ou
+    make train
+"""
 import json
 from pathlib import Path
 
@@ -41,6 +57,24 @@ MLP_PARAMS = {
 
 
 def train_mlp(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) -> dict:
+    """Treina o MLP PyTorch e loga métricas, histórico e artefatos no MLflow.
+
+    Executa como nested run dentro do experimento principal. Treina o modelo
+    com os hiperparâmetros definidos em MLP_PARAMS, avalia no conjunto de teste
+    e persiste o modelo no MLflow.
+
+    Args:
+        X_train: Features de treino (array numpy pré-processado).
+        y_train: Labels de treino.
+        X_val: Features de validação para early stopping.
+        y_val: Labels de validação.
+        X_test: Features de teste para avaliação final.
+        y_test: Labels de teste.
+        input_dim: Dimensão do vetor de entrada (número de features).
+
+    Returns:
+        Dicionário com 'trainer' (MLPTrainer treinado) e 'metrics' (métricas de teste).
+    """
     with mlflow.start_run(run_name="mlp_pytorch", nested=True):
         mlflow.set_tag("model_type", "neural_network")
         mlflow.set_tag("framework", "pytorch")
@@ -78,6 +112,20 @@ def train_mlp(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) ->
 
 
 def main():
+    """Pipeline completo de treino: carrega dados, treina baselines e MLP, salva artefatos.
+
+    Fluxo de execução:
+        1. Configura MLflow (tracking URI e experimento)
+        2. Carrega e valida o dataset com Pandera
+        3. Limpa os dados e divide em treino/validação/teste (estratificado)
+        4. Constrói e ajusta o pipeline de pré-processamento
+        5. Treina cada baseline com cross-validation e loga no MLflow
+        6. Treina o MLP PyTorch e loga no MLflow
+        7. Salva preprocessor.joblib, mlp_model.pt, model_config.json e results.json
+
+    Os artefatos são salvos em models/ e os experimentos no servidor MLflow
+    configurado via MLFLOW_TRACKING_URI no .env.
+    """
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
 
