@@ -1,5 +1,8 @@
 .PHONY: install lint test train run clean
 
+# Força UTF-8 no Python: o MLflow imprime URLs de run com emoji (🏃) que quebram em terminais Windows com codificação legada(cp1252).
+export PYTHONUTF8 := 1
+
 install:
 	uv sync --extra dev
 
