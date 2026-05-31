@@ -3,7 +3,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import src.api.app as app_module
-from src.api.app import app, create_access_token
+from src.api.app import app
+from src.api.security import create_access_token
 from src.models.mlp import ChurnMLP
 
 VALID_PAYLOAD = {
