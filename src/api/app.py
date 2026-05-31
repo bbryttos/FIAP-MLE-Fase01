@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -65,6 +65,51 @@ user_repo = InMemoryUserRepository()
 
 # ── Estado da aplicação ───────────────────────────────────────────────────────
 _state: dict = {"pipeline": None, "model": None, "input_dim": None}
+
+BATCH_INPUT_EXAMPLE = [
+    {
+        "senior_citizen": 0,
+        "tenure": 12,
+        "monthly_charges": 65.5,
+        "total_charges": 786.0,
+        "gender": "Male",
+        "partner": "Yes",
+        "dependents": "No",
+        "phone_service": "Yes",
+        "multiple_lines": "No",
+        "internet_service": "Fiber optic",
+        "online_security": "No",
+        "online_backup": "Yes",
+        "device_protection": "No",
+        "tech_support": "No",
+        "streaming_tv": "No",
+        "streaming_movies": "No",
+        "contract": "Month-to-month",
+        "paperless_billing": "Yes",
+        "payment_method": "Electronic check",
+    },
+    {
+        "senior_citizen": 1,
+        "tenure": 60,
+        "monthly_charges": 45.0,
+        "total_charges": 2700.0,
+        "gender": "Female",
+        "partner": "No",
+        "dependents": "No",
+        "phone_service": "Yes",
+        "multiple_lines": "Yes",
+        "internet_service": "DSL",
+        "online_security": "Yes",
+        "online_backup": "No",
+        "device_protection": "Yes",
+        "tech_support": "No",
+        "streaming_tv": "Yes",
+        "streaming_movies": "No",
+        "contract": "Two year",
+        "paperless_billing": "No",
+        "payment_method": "Bank transfer (automatic)",
+    },
+]
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -267,7 +312,18 @@ async def predict_apikey(
 
 @app.post("/predict-batch", response_model=BatchPredictionOutput, tags=["Inference"])
 async def predict_batch(
-    clientes: Annotated[list[ClienteInput], ...],
+    clientes: Annotated[
+        list[ClienteInput],
+        Body(
+            ...,
+            openapi_examples={
+                "default": {
+                    "summary": "Exemplo de batch com 2 clientes",
+                    "value": BATCH_INPUT_EXAMPLE,
+                }
+            },
+        ),
+    ],
     service: ModelState,
     current_user: dict = Depends(verify_token),
 ):
