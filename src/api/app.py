@@ -19,7 +19,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +27,18 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
+from src.api.metrics import (
+    CHURN_PROBABILITY,
+    LOGIN_ATTEMPTS,
+    MODEL_LOADED,
+    PREDICTION_LATENCY,
+    PREDICTIONS_TOTAL,
+    RATE_LIMIT_HITS,
+    REQUEST_LATENCY,
+    REQUESTS_TOTAL,
+)
+from src.api.model_loader import LocalModelRepository, ModelRepository
+from src.api.prediction_service import PredictionService
 from src.api.schemas import (
     BatchPredictionOutput,
     ClienteInput,
@@ -40,22 +52,9 @@ from src.api.security import (
     InMemoryUserRepository,
     check_rate_limit,
     create_access_token,
-    http_bearer,
     remaining_requests,
     verify_api_key,
     verify_token,
-)
-from src.api.model_loader import LocalModelRepository, ModelRepository
-from src.api.prediction_service import PredictionService
-from src.api.metrics import (
-    CHURN_PROBABILITY,
-    LOGIN_ATTEMPTS,
-    MODEL_LOADED,
-    PREDICTION_LATENCY,
-    PREDICTIONS_TOTAL,
-    RATE_LIMIT_HITS,
-    REQUEST_LATENCY,
-    REQUESTS_TOTAL,
 )
 from src.utils.config import settings
 from src.utils.logger import get_logger
