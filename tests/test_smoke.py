@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 
 from src.data.preprocessing import build_preprocessing_pipeline
-from src.models.baseline import evaluate_model, get_baselines
+from src.models.baseline import get_baselines
+from src.models.evaluation import evaluate_model
 from src.models.mlp import ChurnMLP, predict_proba, train_mlp
 
 
