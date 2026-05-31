@@ -124,6 +124,19 @@ uv sync --extra dev
 cp .env.example .env
 ```
 
+### Primeira execução (ordem recomendada)
+
+O treino usa `MLFLOW_TRACKING_URI=http://localhost:5001`.  
+Por isso, suba o MLflow antes de rodar o pipeline de treino:
+
+```bash
+# Terminal 1: inicia o servidor de tracking
+make mlflow-ui
+
+# Terminal 2: executa o treinamento
+make train
+```
+
 ### Sem uv (alternativa com pip)
 
 ```bash
@@ -155,9 +168,9 @@ data/raw/Telco_customer_churn.csv
 | Comando | Descrição |
 |---|---|
 | `make install` | Instala todas as dependências |
-| `make train` | Treina baselines + MLP, loga no MLflow, salva artefatos |
-| `make run` | Sobe a API FastAPI em `http://localhost:8000` |
 | `make mlflow-ui` | Abre o MLflow UI em `http://localhost:5001`* |
+| `make train` | Treina baselines + MLP, loga no MLflow, salva artefatos (requer MLflow ativo) |
+| `make run` | Sobe a API FastAPI em `http://localhost:8000` |
 | `make test` | Roda todos os testes com pytest |
 | `make lint` | Verifica estilo com ruff |
 | `make clean` | Remove caches e artefatos temporários |
