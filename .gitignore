@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .Python
 *.egg-info/
+churn_prediction.egg-info/
 dist/
 build/
 .eggs/
@@ -15,25 +16,27 @@ venv/
 env/
 
 # ML artifacts
-models/*.joblib
+# models/*.joblib
 models/*.pt
-models/*.pkl
+# models/*.pkl
 models/results.json
 mlruns/
 mlartifacts/
+mlflow.db
 
 # Data
-data/raw/*.csv
-data/raw/*.parquet
-data/processed/
+# data/raw/*.csv
+# data/raw/*.parquet
+# data/processed/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
+notebooks/logs/
 
 # Environment
 .env
 .env.*
+!.env.example
 *.env
 
 # IDE
@@ -45,10 +48,26 @@ data/processed/
 .DS_Store
 Thumbs.db
 
+# Tools
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
 # Coverage
 .coverage
 htmlcov/
-.pytest_cache/
 
 # Logs
 logs/
+mlflow.db
+notebooks/logs/
+churn_prediction.egg-info/
+mlruns/
+
+# Claude
+CLAUDE.md
+.claude/
+
+# Monitoring data
+monitoring/grafana/data/
+monitoring/prometheus/data/

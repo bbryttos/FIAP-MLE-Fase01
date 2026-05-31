@@ -1,7 +1,7 @@
 .PHONY: install lint test train run clean
 
 install:
-	uv sync --group dev
+	uv sync --extra dev
 
 lint:
 	uv run ruff check src/ tests/
@@ -19,7 +19,7 @@ run:
 	uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
 
 mlflow-ui:
-	uv run mlflow ui --host 0.0.0.0 --port 5000
+	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --host 0.0.0.0 --port 5001
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
