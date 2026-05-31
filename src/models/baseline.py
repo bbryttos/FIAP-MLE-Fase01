@@ -1,20 +1,11 @@
-import numpy as np
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    average_precision_score,
-    classification_report,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
+from sklearn.metrics import classification_report
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.pipeline import Pipeline
 
+from src.models.evaluation import compute_metrics
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -47,67 +38,6 @@ def get_baselines() -> dict:
             n_estimators=100, random_state=RANDOM_STATE
         ),
     }
-
-
-def evaluate_model(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    y_proba: np.ndarray,
-) -> dict[str, float]:
-    """Calcula métricas completas incluindo PR-AUC e componentes da matriz de confusão.
-
-    Args:
-        y_true: Labels reais com shape (n_samples,).
-        y_pred: Predições binárias com shape (n_samples,).
-        y_proba: Probabilidades da classe positiva com shape (n_samples,).
-
-    Returns:
-        Dicionário com accuracy, roc_auc, pr_auc, f1, precision, recall, tp, fp, tn, fn.
-
-    Example:
-        >>> metrics = evaluate_model(y_test, y_pred, y_prob)
-        >>> print(f"F1: {metrics['f1']:.4f} | AUC: {metrics['roc_auc']:.4f}")
-    """
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-    return {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "roc_auc": float(roc_auc_score(y_true, y_proba)),
-        "pr_auc": float(average_precision_score(y_true, y_proba)),
-        "f1": float(f1_score(y_true, y_pred)),
-        "precision": float(precision_score(y_true, y_pred)),
-        "recall": float(recall_score(y_true, y_pred)),
-        "tp": int(tp),
-        "fp": int(fp),
-        "tn": int(tn),
-        "fn": int(fn),
-    }
-
-
-def compute_metrics(y_true, y_pred, y_prob=None) -> dict:
-    """Alias retrocompatível para evaluate_model(). Calcula métricas de classificação.
-
-    Mantém a interface original usada pelos testes existentes. Para novas
-    implementações, prefira evaluate_model() que retorna métricas mais completas.
-
-    Args:
-        y_true: Labels reais.
-        y_pred: Predições binárias.
-        y_prob: Probabilidades da classe positiva (opcional). Se fornecido,
-                inclui auc_roc e pr_auc no resultado.
-
-    Returns:
-        Dicionário com accuracy, f1, precision, recall e opcionalmente auc_roc e pr_auc.
-    """
-    metrics = {
-        "accuracy": accuracy_score(y_true, y_pred),
-        "f1": f1_score(y_true, y_pred),
-        "precision": precision_score(y_true, y_pred),
-        "recall": recall_score(y_true, y_pred),
-    }
-    if y_prob is not None:
-        metrics["auc_roc"] = roc_auc_score(y_true, y_prob)
-        metrics["pr_auc"] = average_precision_score(y_true, y_prob)
-    return metrics
 
 
 def train_baseline(

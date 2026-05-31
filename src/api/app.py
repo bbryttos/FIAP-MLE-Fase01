@@ -15,32 +15,16 @@ Observabilidade:
 - Logs JSON estruturados com trace_id
 """
 
-import json
 import time
 import uuid
-from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any
 
-import bcrypt
-import joblib
-import numpy as np
-import pandas as pd
-import torch
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
-from prometheus_client import (
-    CONTENT_TYPE_LATEST,
-    Counter,
-    Gauge,
-    Histogram,
-    generate_latest,
-)
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
 from src.api.schemas import (
@@ -49,121 +33,53 @@ from src.api.schemas import (
     HealthOutput,
     PredictionOutput,
 )
-from src.models.mlp import ChurnMLP, predict_proba
+from src.api.security import (
+    JWT_EXPIRE_MINUTES,
+    RATE_LIMIT_REQUESTS,
+    RATE_LIMIT_WINDOW,
+    InMemoryUserRepository,
+    check_rate_limit,
+    create_access_token,
+    http_bearer,
+    remaining_requests,
+    verify_api_key,
+    verify_token,
+)
+from src.api.model_loader import LocalModelRepository, ModelRepository
+from src.api.prediction_service import PredictionService
+from src.api.metrics import (
+    CHURN_PROBABILITY,
+    LOGIN_ATTEMPTS,
+    MODEL_LOADED,
+    PREDICTION_LATENCY,
+    PREDICTIONS_TOTAL,
+    RATE_LIMIT_HITS,
+    REQUEST_LATENCY,
+    REQUESTS_TOTAL,
+)
 from src.utils.config import settings
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# ── Configurações de segurança ────────────────────────────────────────────────
-JWT_SECRET_KEY = getattr(settings, "jwt_secret_key", "churn-secret-key-fiap-tech-challenge-2026")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = 60
-API_KEY = getattr(settings, "api_key", "churn-api-key-fiap-2026")
-RATE_LIMIT_REQUESTS = getattr(settings, "rate_limit_requests", 100)
-RATE_LIMIT_WINDOW = getattr(settings, "rate_limit_window", 60)
-
-USERS_DB = {
-    "admin": {"password": bcrypt.hashpw(b"admin123", bcrypt.gensalt()), "role": "admin"},
-    "user": {"password": bcrypt.hashpw(b"user123", bcrypt.gensalt()), "role": "user"},
-}
+user_repo = InMemoryUserRepository()
 
 # ── Estado da aplicação ───────────────────────────────────────────────────────
 _state: dict = {"pipeline": None, "model": None, "input_dim": None}
-_request_history: dict = defaultdict(deque)
-
-# ── Métricas Prometheus ───────────────────────────────────────────────────────
-PREDICTIONS_TOTAL = Counter(
-    "churn_predictions_total",
-    "Total de predições realizadas",
-    ["auth_method", "risk_level"],
-)
-PREDICTION_LATENCY = Histogram(
-    "churn_prediction_latency_seconds",
-    "Latência das predições em segundos",
-    buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0],
-)
-REQUEST_LATENCY = Histogram(
-    "churn_request_latency_seconds",
-    "Latência total das requisições em segundos",
-    ["method", "endpoint", "status"],
-    buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
-)
-REQUESTS_TOTAL = Counter(
-    "churn_requests_total",
-    "Total de requisições recebidas",
-    ["method", "endpoint", "status"],
-)
-MODEL_LOADED = Gauge(
-    "churn_model_loaded",
-    "Indica se o modelo está carregado (1=sim, 0=não)",
-)
-LOGIN_ATTEMPTS = Counter(
-    "churn_login_attempts_total",
-    "Total de tentativas de login",
-    ["status"],
-)
-RATE_LIMIT_HITS = Counter(
-    "churn_rate_limit_hits_total",
-    "Total de requisições bloqueadas por rate limiting",
-)
-CHURN_PROBABILITY = Histogram(
-    "churn_prediction_probability",
-    "Distribuição das probabilidades de churn preditas",
-    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-)
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    models_dir = Path(settings.models_dir)
-    logger.info("Loading model artifacts from {}", str(models_dir))
+    repo: ModelRepository = LocalModelRepository(Path(settings.models_dir))
+    logger.info("Loading model artifacts from {}", str(settings.models_dir))
     try:
-        pipeline_path = models_dir / "preprocessor.joblib"
-        legacy_path = models_dir / "preprocessing_pipeline.joblib"
-        if pipeline_path.exists():
-            _state["pipeline"] = joblib.load(pipeline_path)
-        elif legacy_path.exists():
-            _state["pipeline"] = joblib.load(legacy_path)
-        else:
-            raise FileNotFoundError(f"No pipeline found in {models_dir}")
-
-        cfg_path = models_dir / "model_config.json"
-        if cfg_path.exists():
-            with open(cfg_path) as f:
-                cfg = json.load(f)
-            input_dim = cfg.get("input_dim")
-            hidden_dims = cfg.get("hidden_dims", [64, 32, 16])
-        else:
-            input_dim = None
-            hidden_dims = [64, 32, 16]
-
-        pt_path = models_dir / "mlp_model.pt"
-        legacy_pt = models_dir / "mlp_weights.pt"
-        if pt_path.exists():
-            ckpt = torch.load(pt_path, map_location="cpu", weights_only=True)
-            input_dim = ckpt.get("input_dim", input_dim)
-            hidden_dims = ckpt.get("hidden_dims", hidden_dims)
-            model = ChurnMLP(input_dim=input_dim, hidden_dims=hidden_dims)
-            model.load_state_dict(ckpt["state_dict"])
-        elif legacy_pt.exists():
-            state_dict = torch.load(legacy_pt, map_location="cpu", weights_only=True)
-            model = ChurnMLP(input_dim=input_dim, hidden_dims=hidden_dims)
-            model.load_state_dict(state_dict)
-        else:
-            raise FileNotFoundError(f"No model .pt found in {models_dir}")
-
-        model.eval()
-        _state["model"] = model
-        _state["input_dim"] = input_dim
+        loaded = repo.load()
+        _state.update(loaded)
         MODEL_LOADED.set(1)
-        logger.info("Model ready — input_dim={}", input_dim)
-
     except Exception as exc:
         MODEL_LOADED.set(0)
         logger.error("Failed to load model artifacts: {}", exc)
-
     yield
     logger.info("API shutting down.")
 
@@ -193,7 +109,6 @@ API de predição de churn para operadora de telecomunicações.
         {"name": "Inference", "description": "Predições de churn"},
     ],
 )
-http_bearer = HTTPBearer(auto_error=False)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -209,14 +124,8 @@ app.add_middleware(
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     client_ip = request.client.host
-    now = time.time()
-    history = _request_history[client_ip]
-
-    while history and now - history[0] > RATE_LIMIT_WINDOW:
-        history.popleft()
-
-    if len(history) >= RATE_LIMIT_REQUESTS:
-        retry_after = int(RATE_LIMIT_WINDOW - (now - history[0]))
+    blocked, retry_after = check_rate_limit(client_ip)
+    if blocked:
         RATE_LIMIT_HITS.inc()
         logger.warning("Rate limit exceeded for IP={}", client_ip)
         return JSONResponse(
@@ -227,11 +136,9 @@ async def rate_limit_middleware(request: Request, call_next):
             },
             headers={"Retry-After": str(retry_after)},
         )
-
-    history.append(now)
     response = await call_next(request)
     response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
-    response.headers["X-RateLimit-Remaining"] = str(RATE_LIMIT_REQUESTS - len(history))
+    response.headers["X-RateLimit-Remaining"] = str(remaining_requests(client_ip))
     return response
 
 
@@ -266,84 +173,14 @@ async def observability_middleware(request: Request, call_next):
     return response
 
 
-# ── Funções JWT ───────────────────────────────────────────────────────────────
-def create_access_token(username: str, role: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    payload = {"sub": username, "role": role, "exp": expire}
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
-
-
-def verify_token(
-    credentials: HTTPAuthorizationCredentials = Depends(http_bearer),
-) -> dict:
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token ausente. Use: Authorization: Bearer <token>",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        return {"username": payload["sub"], "role": payload["role"]}
-    except JWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token inválido ou expirado: {exc}",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-
-# ── Funções API Key ───────────────────────────────────────────────────────────
-def verify_api_key(x_api_key: str | None = Header(default=None)) -> str:
-    if x_api_key is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API Key ausente.")
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API Key inválida.")
-    return x_api_key
-
-
 # ── Dependency: modelo disponível ─────────────────────────────────────────────
-def _require_model(request: Request) -> Any:
+def _require_model(request: Request) -> PredictionService:
     if _state["model"] is None or _state["pipeline"] is None:
         raise HTTPException(status_code=503, detail="Model not available")
-    return _state
+    return PredictionService(pipeline=_state["pipeline"], model=_state["model"])
 
 
-ModelState = Annotated[Any, Depends(_require_model)]
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def _customer_to_df(cliente: ClienteInput) -> pd.DataFrame:
-    return pd.DataFrame([{
-        "tenure": cliente.tenure,
-        "monthly_charges": cliente.monthly_charges,
-        "total_charges": cliente.total_charges,
-        "senior_citizen": cliente.senior_citizen,
-        "gender": cliente.gender,
-        "partner": cliente.partner,
-        "dependents": cliente.dependents,
-        "phone_service": cliente.phone_service,
-        "multiple_lines": cliente.multiple_lines,
-        "internet_service": cliente.internet_service,
-        "online_security": cliente.online_security,
-        "online_backup": cliente.online_backup,
-        "device_protection": cliente.device_protection,
-        "tech_support": cliente.tech_support,
-        "streaming_tv": cliente.streaming_tv,
-        "streaming_movies": cliente.streaming_movies,
-        "contract": cliente.contract,
-        "paperless_billing": cliente.paperless_billing,
-        "payment_method": cliente.payment_method,
-    }])
-
-
-def _risk_level(prob: float) -> str:
-    if prob >= 0.7:
-        return "high"
-    if prob >= 0.4:
-        return "medium"
-    return "low"
+ModelState = Annotated[PredictionService, Depends(_require_model)]
 
 
 # ── Endpoints públicos ────────────────────────────────────────────────────────
@@ -373,8 +210,8 @@ async def metrics():
 @app.post("/auth/login", tags=["Auth"])
 async def login(username: str, password: str):
     """Login e geração de token JWT. Usuários: admin/admin123, user/user123"""
-    user = USERS_DB.get(username)
-    if not user or not bcrypt.checkpw(password.encode(), user["password"]):
+    user = user_repo.authenticate(username, password)
+    if not user:
         LOGIN_ATTEMPTS.labels(status="failed").inc()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário ou senha incorretos.")
     LOGIN_ATTEMPTS.labels(status="success").inc()
@@ -392,26 +229,20 @@ async def me(current_user: dict = Depends(verify_token)):
 @app.post("/predict", response_model=PredictionOutput, tags=["Inference"])
 async def predict(
     cliente: ClienteInput,
-    bundle: ModelState,
+    service: ModelState,
     current_user: dict = Depends(verify_token),
 ):
     """Predição de churn para um cliente. Requer JWT."""
     try:
-        X = bundle["pipeline"].transform(_customer_to_df(cliente)).astype(np.float32)
+        start = time.perf_counter()
+        prob, prediction, risk = service.predict(cliente)
+        PREDICTION_LATENCY.observe(time.perf_counter() - start)
     except Exception as exc:
-        logger.error("Preprocessing failed: {}", exc)
+        logger.error("Prediction failed: {}", exc)
         raise HTTPException(status_code=422, detail=f"Preprocessing error: {exc}") from exc
-
-    start = time.perf_counter()
-    prob = float(predict_proba(bundle["model"], X)[0])
-    PREDICTION_LATENCY.observe(time.perf_counter() - start)
-
-    prediction = int(prob >= 0.5)
-    risk = _risk_level(prob)
 
     PREDICTIONS_TOTAL.labels(auth_method="jwt", risk_level=risk).inc()
     CHURN_PROBABILITY.observe(prob)
-
     logger.info("user={} churn_prob={:.4f} pred={} risk={}", current_user["username"], prob, prediction, risk)
     return PredictionOutput(churn_probability=round(prob, 4), prediction=prediction, risk_level=risk)
 
@@ -419,32 +250,26 @@ async def predict(
 @app.post("/predict-apikey", response_model=PredictionOutput, tags=["Inference"])
 async def predict_apikey(
     cliente: ClienteInput,
-    bundle: ModelState,
+    service: ModelState,
     _: str = Depends(verify_api_key),
 ):
     """Predição de churn para um cliente. Requer API Key."""
     try:
-        X = bundle["pipeline"].transform(_customer_to_df(cliente)).astype(np.float32)
+        start = time.perf_counter()
+        prob, prediction, risk = service.predict(cliente)
+        PREDICTION_LATENCY.observe(time.perf_counter() - start)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Preprocessing error: {exc}") from exc
 
-    start = time.perf_counter()
-    prob = float(predict_proba(bundle["model"], X)[0])
-    PREDICTION_LATENCY.observe(time.perf_counter() - start)
-
-    prediction = int(prob >= 0.5)
-    risk = _risk_level(prob)
-
     PREDICTIONS_TOTAL.labels(auth_method="api_key", risk_level=risk).inc()
     CHURN_PROBABILITY.observe(prob)
-
     return PredictionOutput(churn_probability=round(prob, 4), prediction=prediction, risk_level=risk)
 
 
 @app.post("/predict-batch", response_model=BatchPredictionOutput, tags=["Inference"])
 async def predict_batch(
     clientes: Annotated[list[ClienteInput], ...],
-    bundle: ModelState,
+    service: ModelState,
     current_user: dict = Depends(verify_token),
 ):
     """Predição em batch para múltiplos clientes (1 a 1000). Requer JWT."""
@@ -452,26 +277,13 @@ async def predict_batch(
         raise HTTPException(status_code=422, detail="Batch size must be between 1 and 1000")
 
     try:
-        df = pd.concat([_customer_to_df(c) for c in clientes], ignore_index=True)
-        X = bundle["pipeline"].transform(df).astype(np.float32)
+        predictions = service.predict_batch(clientes)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Preprocessing error: {exc}") from exc
 
-    probs = predict_proba(bundle["model"], X)
     logger.info("user={} batch_size={}", current_user["username"], len(clientes))
-
-    predictions = [
-        PredictionOutput(
-            churn_probability=round(float(p), 4),
-            prediction=int(float(p) >= 0.5),
-            risk_level=_risk_level(float(p)),
-        )
-        for p in probs
-    ]
-
-    for p in probs:
-        risk = _risk_level(float(p))
-        PREDICTIONS_TOTAL.labels(auth_method="jwt_batch", risk_level=risk).inc()
-        CHURN_PROBABILITY.observe(float(p))
+    for pred in predictions:
+        PREDICTIONS_TOTAL.labels(auth_method="jwt_batch", risk_level=pred.risk_level).inc()
+        CHURN_PROBABILITY.observe(pred.churn_probability)
 
     return BatchPredictionOutput(predictions=predictions, count=len(predictions))

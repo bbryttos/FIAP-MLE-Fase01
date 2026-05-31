@@ -30,7 +30,8 @@ from src.data.preprocessing import (
     split_data,
 )
 from src.data.schema import validate_raw
-from src.models.baseline import build_baselines, compute_metrics, train_baseline
+from src.models.baseline import build_baselines, train_baseline
+from src.models.evaluation import compute_metrics
 from src.models.mlp import MLPTrainer
 from src.utils import settings
 from src.utils.logger import get_logger
@@ -56,35 +57,63 @@ MLP_PARAMS = {
 }
 
 
-def train_mlp(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) -> dict:
-    """Treina o MLP PyTorch e loga métricas, histórico e artefatos no MLflow.
+# ── Etapas do pipeline ────────────────────────────────────────────────────────
 
-    Executa como nested run dentro do experimento principal. Treina o modelo
-    com os hiperparâmetros definidos em MLP_PARAMS, avalia no conjunto de teste
-    e persiste o modelo no MLflow.
+def _load_and_validate(data_path):
+    """Carrega CSV e valida schema com Pandera."""
+    logger.info("Loading and validating data from {}", data_path)
+    df_raw = load_data(data_path)
+    validate_raw(df_raw)
+    return df_raw
 
-    Args:
-        X_train: Features de treino (array numpy pré-processado).
-        y_train: Labels de treino.
-        X_val: Features de validação para early stopping.
-        y_val: Labels de validação.
-        X_test: Features de teste para avaliação final.
-        y_test: Labels de teste.
-        input_dim: Dimensão do vetor de entrada (número de features).
 
-    Returns:
-        Dicionário com 'trainer' (MLPTrainer treinado) e 'metrics' (métricas de teste).
-    """
+def _build_preprocessed_splits(df) -> tuple:
+    """Limpa, divide e aplica o pipeline completo. Retorna (pipeline, arrays, labels)."""
+    df = clean_data(df)
+    X_train_df, X_val_df, X_test_df, y_train, y_val, y_test = split_data(df)
+
+    pipeline = build_full_pipeline()
+    X_train = pipeline.fit_transform(X_train_df)
+    X_val = pipeline.transform(X_val_df)
+    X_test = pipeline.transform(X_test_df)
+
+    joblib.dump(pipeline, MODELS_DIR / "preprocessor.joblib")
+    logger.info("Full pipeline fitted. Feature dim: {}", X_train.shape[1])
+    return pipeline, X_train_df, X_val_df, X_test_df, X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def _run_baselines(X_train_df, y_train, X_test_df, y_test) -> tuple:
+    """Treina baselines com CV e retorna (results_dict, best_pipeline, best_name)."""
+    results: dict = {}
+    best_f1 = 0.0
+    best_pipeline = None
+    best_name = ""
+
+    for name, bl_pipeline, params in build_baselines():
+        res = train_baseline(bl_pipeline, X_train_df, y_train, X_test_df, y_test, name, params)
+        results[name] = res["metrics"]
+        if res["metrics"]["f1"] > best_f1:
+            best_f1 = res["metrics"]["f1"]
+            best_pipeline = res["pipeline"]
+            best_name = name
+
+    if best_pipeline:
+        joblib.dump(best_pipeline, MODELS_DIR / "best_baseline.joblib")
+        logger.info("Best baseline: {} (F1={:.4f})", best_name, best_f1)
+        mlflow.log_param("best_baseline", best_name)
+        mlflow.log_metric("best_baseline_f1", best_f1)
+
+    return results, best_pipeline, best_name
+
+
+def _train_mlp_experiment(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) -> dict:
+    """Treina o MLP PyTorch e loga métricas, histórico e artefatos no MLflow."""
     with mlflow.start_run(run_name="mlp_pytorch", nested=True):
         mlflow.set_tag("model_type", "neural_network")
         mlflow.set_tag("framework", "pytorch")
         mlflow.log_params(MLP_PARAMS)
 
-        trainer = MLPTrainer(
-            input_dim=input_dim,
-            **MLP_PARAMS,
-            random_state=RANDOM_STATE,
-        )
+        trainer = MLPTrainer(input_dim=input_dim, **MLP_PARAMS, random_state=RANDOM_STATE)
         trainer.fit(X_train, y_train, X_val, y_val)
 
         y_pred = trainer.predict(X_test)
@@ -95,54 +124,44 @@ def train_mlp(X_train, y_train, X_val, y_val, X_test, y_test, input_dim: int) ->
             mlflow.log_metric(f"test_{name}", val)
 
         mlflow.log_dict(
-            {
-                "train_loss": trainer.history["train_loss"],
-                "val_loss": trainer.history["val_loss"],
-            },
+            {"train_loss": trainer.history["train_loss"], "val_loss": trainer.history["val_loss"]},
             "training_history.json",
         )
         mlflow.pytorch.log_model(trainer.model, "model")
-
-        logger.info(
-            "MLP — Test F1: {:.4f} | AUC: {:.4f}",
-            metrics["f1"], metrics.get("auc_roc", 0),
-        )
+        logger.info("MLP — Test F1: {:.4f} | AUC: {:.4f}", metrics["f1"], metrics.get("auc_roc", 0))
 
     return {"trainer": trainer, "metrics": metrics}
 
 
+def _save_artifacts(X_train, mlp_result) -> None:
+    """Persiste mlp_model.pt, model_config.json e results.json em MODELS_DIR."""
+    input_dim = X_train.shape[1]
+    torch.save(
+        {
+            "input_dim": input_dim,
+            "hidden_dims": MLP_PARAMS["hidden_dims"],
+            "state_dict": mlp_result["trainer"].model.state_dict(),
+        },
+        MODELS_DIR / "mlp_model.pt",
+    )
+    with open(MODELS_DIR / "model_config.json", "w") as f:
+        json.dump({"input_dim": input_dim, "hidden_dims": MLP_PARAMS["hidden_dims"]}, f)
+    logger.info("Saved mlp_model.pt and model_config.json (input_dim={})", input_dim)
+
+
+# ── Orquestrador ──────────────────────────────────────────────────────────────
+
 def main():
-    """Pipeline completo de treino: carrega dados, treina baselines e MLP, salva artefatos.
-
-    Fluxo de execução:
-        1. Configura MLflow (tracking URI e experimento)
-        2. Carrega e valida o dataset com Pandera
-        3. Limpa os dados e divide em treino/validação/teste (estratificado)
-        4. Constrói e ajusta o pipeline de pré-processamento
-        5. Treina cada baseline com cross-validation e loga no MLflow
-        6. Treina o MLP PyTorch e loga no MLflow
-        7. Salva preprocessor.joblib, mlp_model.pt, model_config.json e results.json
-
-    Os artefatos são salvos em models/ e os experimentos no servidor MLflow
-    configurado via MLFLOW_TRACKING_URI no .env.
-    """
+    """Orquestra o pipeline completo de treino."""
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
 
-    logger.info("Loading and validating data from {}", DATA_PATH)
-    df_raw = load_data(DATA_PATH)
-    validate_raw(df_raw)
-
-    df = clean_data(df_raw)
-    X_train_df, X_val_df, X_test_df, y_train, y_val, y_test = split_data(df)
-
-    # Pipeline reprodutível: FeatureEngineer → ColumnTransformer
-    pipeline = build_full_pipeline()
-    X_train_arr = pipeline.fit_transform(X_train_df)
-    X_val_arr = pipeline.transform(X_val_df)
-    X_test_arr = pipeline.transform(X_test_df)
-    joblib.dump(pipeline, MODELS_DIR / "preprocessor.joblib")
-    logger.info("Full pipeline fitted. Feature dim: {}", X_train_arr.shape[1])
+    df_raw = _load_and_validate(DATA_PATH)
+    (
+        pipeline, X_train_df, X_val_df, X_test_df,
+        X_train, X_val, X_test,
+        y_train, y_val, y_test,
+    ) = _build_preprocessed_splits(df_raw)
 
     results: dict = {}
 
@@ -154,70 +173,38 @@ def main():
         mlflow.log_param("random_state", RANDOM_STATE)
 
         logger.info("Training baselines...")
-        best_baseline_f1 = 0.0
-        best_baseline_pipeline = None
-        best_baseline_name = ""
-
-        for name, bl_pipeline, params in build_baselines():
-            res = train_baseline(
-                bl_pipeline, X_train_df, y_train, X_test_df, y_test, name, params
-            )
-            results[name] = res["metrics"]
-            if res["metrics"]["f1"] > best_baseline_f1:
-                best_baseline_f1 = res["metrics"]["f1"]
-                best_baseline_pipeline = res["pipeline"]
-                best_baseline_name = name
-
-        if best_baseline_pipeline:
-            joblib.dump(best_baseline_pipeline, MODELS_DIR / "best_baseline.joblib")
-            logger.info(
-                "Best baseline: {} (F1={:.4f})", best_baseline_name, best_baseline_f1
-            )
-            mlflow.log_param("best_baseline", best_baseline_name)
-            mlflow.log_metric("best_baseline_f1", best_baseline_f1)
+        baseline_results, _, _ = _run_baselines(X_train_df, y_train, X_test_df, y_test)
+        results.update(baseline_results)
 
         logger.info("Training MLP PyTorch...")
-        mlp_res = train_mlp(
-            X_train_arr, y_train.values,
-            X_val_arr, y_val.values,
-            X_test_arr, y_test.values,
-            input_dim=X_train_arr.shape[1],
+        mlp_result = _train_mlp_experiment(
+            X_train, y_train.values,
+            X_val, y_val.values,
+            X_test, y_test.values,
+            input_dim=X_train.shape[1],
         )
-        results["mlp_pytorch"] = mlp_res["metrics"]
+        results["mlp_pytorch"] = mlp_result["metrics"]
 
-        torch.save(
-            {
-                "input_dim": X_train_arr.shape[1],
-                "hidden_dims": MLP_PARAMS["hidden_dims"],
-                "state_dict": mlp_res["trainer"].model.state_dict(),
-            },
-            MODELS_DIR / "mlp_model.pt",
-        )
-        with open(MODELS_DIR / "model_config.json", "w") as f:
-            json.dump({"input_dim": X_train_arr.shape[1], "hidden_dims": MLP_PARAMS["hidden_dims"]}, f)
-        logger.info("Saved mlp_model.pt and model_config.json (input_dim={})", X_train_arr.shape[1])
+        _save_artifacts(X_train, mlp_result)
 
-        mlp_f1 = mlp_res["metrics"]["f1"]
-        mlflow.log_metric(
-            "mlp_vs_best_baseline_f1_delta", mlp_f1 - best_baseline_f1
+        mlp_f1 = mlp_result["metrics"]["f1"]
+        best_baseline_f1 = max(
+            (m["f1"] for m in baseline_results.values()), default=0.0
         )
+        mlflow.log_metric("mlp_vs_best_baseline_f1_delta", mlp_f1 - best_baseline_f1)
 
     logger.info("\nResults summary:")
     for name, metrics in results.items():
         logger.info(
             "  {:<28} F1={:.4f}  AUC={:.4f}  Precision={:.4f}  Recall={:.4f}",
-            name,
-            metrics["f1"],
-            metrics.get("auc_roc", 0),
-            metrics["precision"],
-            metrics["recall"],
+            name, metrics["f1"], metrics.get("auc_roc", 0),
+            metrics["precision"], metrics["recall"],
         )
 
     with open(MODELS_DIR / "results.json", "w") as f:
         json.dump(
             {k: {m: round(v, 4) for m, v in v.items()} for k, v in results.items()},
-            f,
-            indent=2,
+            f, indent=2,
         )
     logger.info("Results saved to models/results.json")
 
