@@ -86,6 +86,10 @@ resource "aws_lb_target_group" "mlflow" {
   vpc_id      = module.network.vpc_id
   target_type = "ip"
 
+  lifecycle {
+    create_before_destroy = true
+  }
+
   health_check {
     path                = "/mlflow"
     protocol            = "HTTP"
@@ -187,16 +191,24 @@ resource "aws_ecs_task_definition" "mlflow" {
   family                   = "${local.name_prefix}-mlflow"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = tostring(var.observability_task_cpu)
-  memory                   = tostring(var.observability_task_memory)
-  execution_role_arn       = aws_iam_role.obs_task_execution.arn
-  task_role_arn            = aws_iam_role.obs_task.arn
+  cpu                      = tostring(max(var.observability_task_cpu, 512))
+  # MLflow usa multiplos workers por padrao e precisa de mais folga de memoria.
+  memory             = tostring(max(var.observability_task_memory, 2048))
+  execution_role_arn = aws_iam_role.obs_task_execution.arn
+  task_role_arn      = aws_iam_role.obs_task.arn
 
   container_definitions = jsonencode([
     {
       name      = "mlflow"
       image     = "ghcr.io/mlflow/mlflow:latest"
       essential = true
+      # MLflow 3.5+ (servidor FastAPI/uvicorn) valida o header Host contra DNS rebinding.
+      # O health check passa pois usa o IP privado (permitido por padrao), mas requisicoes
+      # via ALB/API Gateway chegam com host publico e retornam 403. Liberamos os hosts aqui.
+      environment = [
+        { name = "MLFLOW_SERVER_ALLOWED_HOSTS", value = "*" },
+        { name = "MLFLOW_SERVER_CORS_ALLOWED_ORIGINS", value = "*" }
+      ]
       command = [
         "mlflow",
         "server",
@@ -208,6 +220,8 @@ resource "aws_ecs_task_definition" "mlflow" {
         "0.0.0.0",
         "--port",
         "5000",
+        "--workers",
+        "1",
         "--static-prefix",
         "/mlflow"
       ]
@@ -245,7 +259,10 @@ resource "aws_ecs_task_definition" "prometheus" {
       image     = "prom/prometheus:latest"
       essential = true
       command = [
-        "--web.external-url=/prometheus",
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.path=/prometheus",
+        "--storage.tsdb.retention.time=15d",
+        "--web.enable-lifecycle",
         "--web.route-prefix=/prometheus"
       ]
       portMappings = [
@@ -309,11 +326,12 @@ resource "aws_ecs_task_definition" "grafana" {
 
 # Serviços ECS de observabilidade (escala controlada por observability_desired_count).
 resource "aws_ecs_service" "mlflow" {
-  name            = "${local.name_prefix}-mlflow-service"
-  cluster         = data.aws_ecs_cluster.main.arn
-  task_definition = aws_ecs_task_definition.mlflow.arn
-  desired_count   = var.observability_desired_count
-  launch_type     = "FARGATE"
+  name                              = "${local.name_prefix}-mlflow-service"
+  cluster                           = data.aws_ecs_cluster.main.arn
+  task_definition                   = aws_ecs_task_definition.mlflow.arn
+  desired_count                     = var.observability_desired_count
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 180
 
   load_balancer {
     target_group_arn = aws_lb_target_group.mlflow.arn
@@ -334,11 +352,12 @@ resource "aws_ecs_service" "mlflow" {
 }
 
 resource "aws_ecs_service" "prometheus" {
-  name            = "${local.name_prefix}-prometheus-service"
-  cluster         = data.aws_ecs_cluster.main.arn
-  task_definition = aws_ecs_task_definition.prometheus.arn
-  desired_count   = var.observability_desired_count
-  launch_type     = "FARGATE"
+  name                              = "${local.name_prefix}-prometheus-service"
+  cluster                           = data.aws_ecs_cluster.main.arn
+  task_definition                   = aws_ecs_task_definition.prometheus.arn
+  desired_count                     = var.observability_desired_count
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 120
 
   load_balancer {
     target_group_arn = aws_lb_target_group.prometheus.arn
@@ -359,11 +378,12 @@ resource "aws_ecs_service" "prometheus" {
 }
 
 resource "aws_ecs_service" "grafana" {
-  name            = "${local.name_prefix}-grafana-service"
-  cluster         = data.aws_ecs_cluster.main.arn
-  task_definition = aws_ecs_task_definition.grafana.arn
-  desired_count   = var.observability_desired_count
-  launch_type     = "FARGATE"
+  name                              = "${local.name_prefix}-grafana-service"
+  cluster                           = data.aws_ecs_cluster.main.arn
+  task_definition                   = aws_ecs_task_definition.grafana.arn
+  desired_count                     = var.observability_desired_count
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 180
 
   load_balancer {
     target_group_arn = aws_lb_target_group.grafana.arn
