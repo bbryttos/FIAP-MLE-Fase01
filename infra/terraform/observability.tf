@@ -263,6 +263,10 @@ resource "aws_ecs_task_definition" "prometheus" {
         "--storage.tsdb.path=/prometheus",
         "--storage.tsdb.retention.time=15d",
         "--web.enable-lifecycle",
+        # external-url define a URL publica do Prometheus por tras do API Gateway/ALB.
+        # Sem isso, o Prometheus 3.x redireciona a raiz para /query sem o prefixo,
+        # resultando em 404. Com external-url, redirects/assets usam /prometheus/.
+        "--web.external-url=${module.api_gateway.api_endpoint}/prometheus",
         "--web.route-prefix=/prometheus"
       ]
       portMappings = [
