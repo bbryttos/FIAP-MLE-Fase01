@@ -1,3 +1,4 @@
+# Provider AWS único do projeto com tags padrão para governança/custo.
 provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile != "" ? var.aws_profile : null

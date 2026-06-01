@@ -1,7 +1,9 @@
+# Descobre AZs disponíveis para distribuir as subnets públicas.
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
+# Convenções globais e variáveis de ambiente da aplicação.
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
 
@@ -16,6 +18,7 @@ locals {
   }
 }
 
+# Camada de rede base (VPC, subnets, roteamento e security groups).
 module "network" {
   source = "./modules/network"
 
@@ -27,12 +30,14 @@ module "network" {
   container_port      = var.container_port
 }
 
+# Registro de imagens Docker da aplicação.
 module "ecr" {
   source = "./modules/ecr"
 
   name_prefix = local.name_prefix
 }
 
+# Exposição HTTP pública com balanceamento para os serviços ECS.
 module "alb" {
   source = "./modules/alb"
 
@@ -44,6 +49,7 @@ module "alb" {
   health_check_path = var.health_check_path
 }
 
+# Camada de entrada pública via API Gateway apontando para o ALB.
 module "api_gateway" {
   source = "./modules/api_gateway"
 
@@ -55,6 +61,7 @@ module "api_gateway" {
   ]
 }
 
+# Serviço principal da API em ECS/Fargate.
 module "ecs_service" {
   source = "./modules/ecs_service"
 
@@ -69,7 +76,7 @@ module "ecs_service" {
   task_cpu                    = var.task_cpu
   task_memory                 = var.task_memory
   container_image             = var.container_image != "" ? var.container_image : "${module.ecr.repository_url}:latest"
-  log_group_retention_in_days = 14
+  log_group_retention_in_days = var.api_log_retention_in_days
 
   environment_variables = local.app_environment
 

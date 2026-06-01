@@ -1,3 +1,4 @@
+# Repositório ECR da API (tag mutável para facilitar ciclo de deploy).
 resource "aws_ecr_repository" "api" {
   name                 = "${var.name_prefix}-api"
   image_tag_mutability = "MUTABLE"
@@ -8,6 +9,7 @@ resource "aws_ecr_repository" "api" {
   }
 }
 
+# Lifecycle policy para conter custo de storage removendo imagens antigas.
 resource "aws_ecr_lifecycle_policy" "api" {
   repository = aws_ecr_repository.api.name
 
@@ -15,11 +17,11 @@ resource "aws_ecr_lifecycle_policy" "api" {
     rules = [
       {
         rulePriority = 1
-        description  = "Manter somente as 15 imagens mais recentes"
+        description  = "Manter somente as 5 imagens mais recentes"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = 15
+          countNumber = 5
         }
         action = {
           type = "expire"

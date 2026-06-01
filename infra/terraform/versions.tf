@@ -1,3 +1,4 @@
+# Restrições mínimas de versão para Terraform e providers.
 terraform {
   required_version = ">= 1.6.0"
 

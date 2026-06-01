@@ -1,3 +1,4 @@
+# Configurações globais da conta/região e identificação de ambiente.
 variable "aws_region" {
   type        = string
   description = "Regiao AWS para criar os recursos."
@@ -28,6 +29,7 @@ variable "tags" {
   default     = {}
 }
 
+# Rede e exposição da API.
 variable "vpc_cidr" {
   type        = string
   description = "CIDR da VPC."
@@ -55,13 +57,13 @@ variable "desired_count" {
 variable "task_cpu" {
   type        = number
   description = "CPU da task ECS (unidades Fargate)."
-  default     = 1024
+  default     = 256
 }
 
 variable "task_memory" {
   type        = number
   description = "Memoria da task ECS em MiB."
-  default     = 2048
+  default     = 512
 }
 
 variable "container_image" {
@@ -110,5 +112,37 @@ variable "alb_ingress_cidr" {
   type        = string
   description = "CIDR autorizado a acessar o ALB."
   default     = "0.0.0.0/0"
+}
+
+# Dimensionamento e imagem da API principal.
+variable "api_log_retention_in_days" {
+  type        = number
+  description = "Retencao de logs da API no CloudWatch."
+  default     = 7
+}
+
+# Dimensionamento e retenção dos serviços de observabilidade.
+variable "observability_desired_count" {
+  type        = number
+  description = "Quantidade desejada de tasks para MLflow/Prometheus/Grafana."
+  default     = 1
+}
+
+variable "observability_task_cpu" {
+  type        = number
+  description = "CPU por task de observabilidade (unidades Fargate)."
+  default     = 256
+}
+
+variable "observability_task_memory" {
+  type        = number
+  description = "Memoria por task de observabilidade em MiB."
+  default     = 512
+}
+
+variable "observability_log_retention_in_days" {
+  type        = number
+  description = "Retencao de logs dos servicos de observabilidade no CloudWatch."
+  default     = 7
 }
 

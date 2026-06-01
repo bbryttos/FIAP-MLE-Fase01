@@ -1,3 +1,4 @@
+# Endpoints públicos para consumo da API e testes rápidos.
 output "alb_dns_name" {
   description = "DNS publico do Application Load Balancer."
   value       = module.alb.alb_dns_name
@@ -23,6 +24,23 @@ output "api_ready_url" {
   value       = "${module.api_gateway.api_endpoint}/ready"
 }
 
+# Endpoints públicos dos serviços de observabilidade.
+output "mlflow_url" {
+  description = "URL publica do MLflow via API Gateway."
+  value       = "${module.api_gateway.api_endpoint}/mlflow"
+}
+
+output "prometheus_url" {
+  description = "URL publica do Prometheus via API Gateway."
+  value       = "${module.api_gateway.api_endpoint}/prometheus"
+}
+
+output "grafana_url" {
+  description = "URL publica do Grafana via API Gateway."
+  value       = "${module.api_gateway.api_endpoint}/grafana"
+}
+
+# Saídas de suporte para operação/deploy.
 output "ecr_repository_url" {
   description = "URL do repositorio ECR da aplicacao."
   value       = module.ecr.repository_url

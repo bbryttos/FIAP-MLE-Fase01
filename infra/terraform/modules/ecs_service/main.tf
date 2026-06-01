@@ -1,17 +1,21 @@
+# Convenções locais do serviço principal da API.
 locals {
   app_name                 = "${var.name_prefix}-api"
   secrets_policy_resources = length(var.secret_arns_for_execution) > 0 ? var.secret_arns_for_execution : ["*"]
 }
 
+# Log group central da API no CloudWatch.
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${local.app_name}"
   retention_in_days = var.log_group_retention_in_days
 }
 
+# Cluster ECS dedicado ao ambiente (reutilizado pela observabilidade).
 resource "aws_ecs_cluster" "this" {
   name = "${var.name_prefix}-cluster"
 }
 
+# Role base para tasks ECS.
 data "aws_iam_policy_document" "ecs_task_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -23,16 +27,19 @@ data "aws_iam_policy_document" "ecs_task_assume_role" {
   }
 }
 
+# Role de execução da task (pull de imagem, envio de logs, etc.).
 resource "aws_iam_role" "task_execution" {
   name               = "${var.name_prefix}-ecs-exec-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
 }
 
+# Permissão gerenciada padrão necessária para execução de task ECS/Fargate.
 resource "aws_iam_role_policy_attachment" "task_execution_managed" {
   role       = aws_iam_role.task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Policy opcional para leitura de secrets em runtime.
 data "aws_iam_policy_document" "task_execution_secrets" {
   statement {
     sid       = "ReadAppSecrets"
@@ -41,6 +48,7 @@ data "aws_iam_policy_document" "task_execution_secrets" {
   }
 }
 
+# Anexa a policy opcional de secrets quando houver ARNs configurados.
 resource "aws_iam_role_policy" "task_execution_secrets" {
   count = length(var.secret_arns_for_execution) > 0 ? 1 : 0
 
@@ -49,11 +57,13 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
   policy = data.aws_iam_policy_document.task_execution_secrets.json
 }
 
+# Task role da aplicação (permissões de negócio, quando necessário).
 resource "aws_iam_role" "task" {
   name               = "${var.name_prefix}-ecs-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
 }
 
+# Task definition da API com logs, env vars e integração com ALB.
 resource "aws_ecs_task_definition" "this" {
   family                   = local.app_name
   network_mode             = "awsvpc"
@@ -99,6 +109,7 @@ resource "aws_ecs_task_definition" "this" {
   ])
 }
 
+# Serviço ECS/Fargate principal da API.
 resource "aws_ecs_service" "this" {
   name            = "${var.name_prefix}-service"
   cluster         = aws_ecs_cluster.this.id
@@ -118,6 +129,7 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = true
   }
 
+  # Evita drift por revisões de task disparadas fora do Terraform.
   lifecycle {
     ignore_changes = [task_definition]
   }
