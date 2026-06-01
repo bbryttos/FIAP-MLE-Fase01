@@ -85,18 +85,15 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# Security group do ECS: aceita tráfego apenas do SG do ALB na porta da API.
+# Security group do ECS: aceita tráfego apenas do SG do ALB.
+# IMPORTANTE: nao usar bloco `ingress` inline aqui. Outros arquivos (ex.: observability.tf)
+# adicionam regras de ingress via `aws_security_group_rule`. Misturar regras inline com
+# regras standalone faz o provider AWS sobrescrever/remover as standalone a cada apply,
+# derrubando a conectividade do ALB ate as portas de MLflow/Prometheus/Grafana.
 resource "aws_security_group" "ecs" {
   name        = "${var.name_prefix}-ecs-sg"
   description = "Permite trafego do ALB para tarefas ECS"
   vpc_id      = aws_vpc.this.id
-
-  ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
 
   egress {
     from_port   = 0
@@ -108,4 +105,16 @@ resource "aws_security_group" "ecs" {
   tags = {
     Name = "${var.name_prefix}-ecs-sg"
   }
+}
+
+# Regra de ingress da API como recurso standalone, evitando conflito com as regras
+# de observabilidade definidas em observability.tf.
+resource "aws_security_group_rule" "ecs_ingress_api_from_alb" {
+  type                     = "ingress"
+  from_port                = var.container_port
+  to_port                  = var.container_port
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.ecs.id
+  source_security_group_id = aws_security_group.alb.id
+  description              = "Permite ALB acessar a API no ECS"
 }

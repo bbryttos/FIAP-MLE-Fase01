@@ -26,8 +26,8 @@ health_check_path   = "/ready"
 alb_ingress_cidr    = "0.0.0.0/0"
 api_log_retention_in_days           = 7
 observability_desired_count         = 1
-observability_task_cpu              = 256
-observability_task_memory           = 512
+observability_task_cpu              = 512
+observability_task_memory           = 2048
 observability_log_retention_in_days = 7
 
 tags = {
