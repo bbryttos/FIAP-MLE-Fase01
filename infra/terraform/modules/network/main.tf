@@ -1,3 +1,4 @@
+# VPC principal com DNS habilitado para permitir descoberta interna dos serviços.
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -8,6 +9,7 @@ resource "aws_vpc" "this" {
   }
 }
 
+# Gateway de internet para liberar saída/entrada das subnets públicas.
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
@@ -16,6 +18,7 @@ resource "aws_internet_gateway" "this" {
   }
 }
 
+# Subnets públicas distribuídas em múltiplas AZs para alta disponibilidade.
 resource "aws_subnet" "public" {
   for_each = {
     for idx, cidr in var.public_subnet_cidrs : idx => {
@@ -35,6 +38,7 @@ resource "aws_subnet" "public" {
   }
 }
 
+# Tabela de rota pública com saída default para a internet.
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
@@ -48,6 +52,7 @@ resource "aws_route_table" "public" {
   }
 }
 
+# Associação de cada subnet pública à tabela de rotas pública.
 resource "aws_route_table_association" "public" {
   for_each = aws_subnet.public
 
@@ -55,6 +60,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# Security group do ALB: recebe tráfego público HTTP.
 resource "aws_security_group" "alb" {
   name        = "${var.name_prefix}-alb-sg"
   description = "Permite acesso HTTP ao ALB"
@@ -79,6 +85,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
+# Security group do ECS: aceita tráfego apenas do SG do ALB na porta da API.
 resource "aws_security_group" "ecs" {
   name        = "${var.name_prefix}-ecs-sg"
   description = "Permite trafego do ALB para tarefas ECS"

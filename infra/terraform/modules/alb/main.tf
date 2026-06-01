@@ -1,3 +1,4 @@
+# ALB público que recebe todo o tráfego HTTP de entrada.
 resource "aws_lb" "this" {
   name               = substr("${var.name_prefix}-alb", 0, 32)
   internal           = false
@@ -6,6 +7,7 @@ resource "aws_lb" "this" {
   subnets            = var.subnet_ids
 }
 
+# Target group principal da API.
 resource "aws_lb_target_group" "api" {
   name        = substr("${var.name_prefix}-tg", 0, 32)
   port        = var.target_port
@@ -24,6 +26,7 @@ resource "aws_lb_target_group" "api" {
   }
 }
 
+# Listener HTTP padrão do ALB.
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
