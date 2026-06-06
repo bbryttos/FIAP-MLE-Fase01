@@ -62,9 +62,16 @@ Executar mensalmente ou após cada re-treino:
   - `senior_citizen` (Yes vs. No)
   - `contract` (Month-to-month vs. contratos longos)
 
-**Threshold:** Diferença de taxa de predição positiva entre grupos > 10pp requer revisão.
+**Threshold:** Diferença entre grupos > 10pp requer revisão (parâmetro `DIFFERENCE_THRESHOLD` em `src/monitoring/fairness.py`).
 
-**Ferramenta:** [Fairlearn](https://fairlearn.org/) — `MetricFrame` para análise por grupo.
+**Implementação:** `src/monitoring/fairness.py` — usa [Fairlearn](https://fairlearn.org/) `MetricFrame` com `mf.difference()` para as métricas:
+- `false_negative_rate` — churners não detectados por grupo (impacto direto de negócio)
+- `false_positive_rate` — falsos alarmes por grupo
+- `selection_rate` — taxa de predições positivas por grupo (demographic parity)
+
+```bash
+make fairness   # requer make train executado previamente
+```
 
 ---
 
