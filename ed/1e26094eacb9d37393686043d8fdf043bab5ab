@@ -1,0 +1,24 @@
+src/training/train.py
+  s_b024e7ea181d14::t_ac35efe4ed5781 212-227
+  s_b024e7ea181d14::t_92a262749bf48f 33
+Makefile
+  s_b024e7ea181d14::t_0f4ea0d98b5862 10-12
+src/api/model_loader.py
+  s_b024e7ea181d14::t_737af0c834c78b 62-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ed1e26094eacb9d37393686043d8fdf043bab5ab",
+  "prompts": {},
+  "sessions": {
+    "s_b024e7ea181d14": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "213e8c78-1a63-45aa-917e-a3134a1ffbd5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "German Eduardo Brunner <german.brunner@mercadopago.com.br>"
+    }
+  }
+}
