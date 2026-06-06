@@ -1,0 +1,35 @@
+src/monitoring/fairness.py
+  s_27ddd23bc2e8e3::t_3d81ed421566df 3-10,21-23,30-31,40,42-46,51,54,56-60,62-63,69-81,84,86,91-93,109-110,113,121,134,142,147-155,164,174,180,183,187,195
+  s_27ddd23bc2e8e3::t_be400529a40258 1-2,11-20,24-29,32-39,41,47-50,52-53,55,61,64-68,82-83,85,87-90,94-108,111-112,114-120,122-133,135-141,143-146,156-157,159-160,168,194,198
+  s_27ddd23bc2e8e3::t_d8247f73b735eb 158,161-163,165-167,169-173,175-179,181-182,184-186,188-193,196-197
+pyproject.toml
+  s_27ddd23bc2e8e3::t_4cb0e115cc7f48 34-35
+tests/test_fairness.py
+  s_27ddd23bc2e8e3::t_c855ad8e2d7d88 1-102
+docs/monitoring_plan.md
+  s_27ddd23bc2e8e3::t_ab54779353e285 65,67-74
+README.md
+  s_27ddd23bc2e8e3::t_3f92d15980e6d3 56-57
+  s_27ddd23bc2e8e3::t_32eb3baecc30a7 28
+  s_27ddd23bc2e8e3::t_b925feb18778e7 485
+  s_27ddd23bc2e8e3::t_509df054efeb40 10
+Makefile
+  s_27ddd23bc2e8e3::t_a09e905b8b8725 28-30
+  s_27ddd23bc2e8e3::t_e4a383129dd196 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8f81e6c9b91dbaf8ce8f25612b2822d3b64f7a27",
+  "prompts": {},
+  "sessions": {
+    "s_27ddd23bc2e8e3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc299938-6074-41f7-8776-0c8f1edc70ee",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "German Eduardo Brunner <german.brunner@mercadopago.com.br>"
+    }
+  }
+}
