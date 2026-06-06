@@ -1,9 +1,7 @@
  # Arquitetura de Deploy — Churn Prediction
 
-   > Justifica a escolha entre **batch** e **real-time**, descreve a        
- infraestrutura
-   > (AWS ECS Fargate) e a estratégia de release (canary). Complementa o    
-   > [`model_card.md`](model_card.md) e o [`ml_canvas.md`](ml_canvas.md).   
+   > Justifica a escolha entre **batch** e **real-time**, descreve a infraestrutura
+   > (AWS ECS Fargate) e a estratégia de release (canary). Complementa o  [`model_card.md`](model_card.md) e o [`ml_canvas.md`](ml_canvas.md).   
 
    ---
 
@@ -11,13 +9,7 @@
 
    ### Análise do caso de uso
 
-   A decisão de negócio (ver ML Canvas) é **acionar a equipe de Customer    
- Success para
-   reter clientes em risco**. Essa ação é **periódica e não interativa**: a 
- fila de
-   retenção é trabalhada ao longo da semana, não no milissegundo em que o   
- cliente
-   aparece.
+   A decisão de negócio (ver ML Canvas) é **acionar a equipe de Customer Success para reter clientes em risco**. Essa ação é **periódica e não interativa**: a fila de retenção é trabalhada ao longo da semana, não no milissegundo em que o cliente aparece.
 
    | Critério | Batch | Real-time | Vencedor p/ churn |
    |---|---|---|---|
@@ -34,20 +26,14 @@
  disponível**
 
    - **Primário — Batch scoring (recomendado):** job agendado (ex.:
- diário/semanal) que
-     pontua **toda a base** de clientes e grava o `churn_probability` em    
- uma tabela,
-     consumida pelo CRM/CS. É o que melhor atende ao caso de uso e minimiza 
- custo.
+ diário/semanal) que pontua **toda a base** de clientes e grava o `churn_probability` em    
+ uma tabela,consumida pelo CRM/CS. É o que melhor atende ao caso de uso e minimiza custo.
    - **Secundário — Real-time (API FastAPI):** mantido para **consultas     
- pontuais e
-     integração** (ex.: agente de CS abre a ficha de um cliente e quer o    
- score na hora,
-     simulações "what-if", testes). Já implementado em `src/api/`.
+ pontuais e integração** (ex.: agente de CS abre a ficha de um cliente e quer o    
+ score na hora, simulações "what-if", testes). Já implementado em `src/api/`.
 
    > Resumindo: **batch para operar a campanha de retenção em escala**;     
- **real-time para
-   > consulta individual e integrações sob demanda**.
+ **real-time para > consulta individual e integrações sob demanda**.
 
    ---
 
@@ -67,9 +53,7 @@
  ```
 
    - **EventBridge** dispara a task no cron definido (ex.: `0 6 * * *`).    
-   - **ECS Fargate Task** (efêmera) roda o container, pontua e encerra —    
- paga-se só pela
-     execução.
+   - **ECS Fargate Task** (efêmera) roda o container, pontua e encerra — paga-se só pela execução.
    - Artefato do modelo versionado via **MLflow Model Registry** (ou S3).   
 
    ### 2.2 Modo Real-time (secundário)
@@ -83,8 +67,7 @@
 
  ```
 
-   - **ALB** (Application Load Balancer) → **ECS Fargate Service** com a    
- API.
+   - **ALB** (Application Load Balancer) → **ECS Fargate Service** com a API.
    - Imagem buildada pelo `Dockerfile` e publicada no **ECR**.
    - Escala horizontal por *target tracking* (CPU/requisições).
 
@@ -92,8 +75,7 @@
 
  ```
 
- GitHub Actions ──▶ lint + test ──▶ docker build ──▶ push ECR ──▶ deploy    
- ECS
+ GitHub Actions ──▶ lint + test ──▶ docker build ──▶ push ECR ──▶ deploy ECS
 
  ```
 
@@ -102,20 +84,15 @@
    ## 3. Estratégia de Release — Canary
 
    Para o **serviço real-time**, novos modelos/versões são promovidos com   
- **canary
-   deployment** (alinhado ao `monitoring_plan`):
+ **canary deployment** (alinhado ao `monitoring_plan`):
 
    1. Nova versão recebe **uma fração do tráfego** (ex.: 10%).
-   2. Compara métricas online (latência, erro, distribuição de score) vs.   
- versão atual.
-   3. Se dentro dos SLOs por janela de observação → **rollout gradual** até 
- 100%.
+   2. Compara métricas online (latência, erro, distribuição de score) vs. versão atual.
+   3. Se dentro dos SLOs por janela de observação → **rollout gradual** até 100%.
    4. Qualquer violação de SLO → **rollback automático**.
 
-   Para o **batch**, a promoção usa **shadow scoring**: a nova versão       
- pontua em paralelo
-   sem efeito operacional; só assume após validação offline contra a versão 
- vigente.
+   Para o **batch**, a promoção usa **shadow scoring**: a nova versão pontua em paralelo
+   sem efeito operacional; só assume após validação offline contra a versão vigente.
 
    ---
 
@@ -134,11 +111,5 @@
 
    ## 5. Resumo da Decisão
 
-   > **Batch é o modo primário** porque a decisão de retenção é periódica,  
- de alto volume
-   > e sem necessidade de latência interativa — o que reduz custo e
- complexidade. A **API
-   > real-time** é mantida para consultas individuais e integrações.        
- Releases usam
-   > **canary** (real-time) e **shadow scoring** (batch), com **rollback**  
- ligado aos SLOs.
+   > **Batch é o modo primário** porque a decisão de retenção é periódica, de alto volume e sem necessidade de latência interativa — o que reduz custo e complexidade. A **API real-time** é mantida para consultas individuais e integrações.        
+ Releases usam **canary** (real-time) e **shadow scoring** (batch), com **rollback** ligado aos SLOs.
