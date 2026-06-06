@@ -7,6 +7,7 @@
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-orange)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-green)
 ![MLflow](https://img.shields.io/badge/MLflow-2.10%2B-blue)
+![Fairlearn](https://img.shields.io/badge/Fairlearn-0.10%2B-teal)
 ![Ruff](https://img.shields.io/badge/linting-ruff-purple)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-black)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -24,7 +25,7 @@ boas práticas de Machine Learning Engineering:
 - **Rastreamento:** MLflow (parâmetros, métricas, artefatos)
 - **Serving:** API REST com FastAPI + Pydantic (single e batch inference)
 - **Segurança:** JWT + API Key + Rate Limiting + CORS
-- **Monitoramento:** Drift detection com KS test + PSI
+- **Monitoramento:** Drift detection com KS test + PSI; análise de fairness com Fairlearn MetricFrame
 - **Deploy:** Docker multi-stage + CI/CD via GitHub Actions + AWS ECS Fargate
 
 ---
@@ -52,7 +53,8 @@ FIAP-MLE-Fase01/
 │   │   ├── evaluation.py        # evaluate_model(), compute_metrics()
 │   │   └── mlp.py               # ChurnMLP (PyTorch) + EarlyStopping + MLPTrainer
 │   ├── monitoring/
-│   │   └── drift_detection.py   # KS test + PSI para monitoramento pós-deploy
+│   │   ├── drift_detection.py   # KS test + PSI para monitoramento pós-deploy
+│   │   └── fairness.py          # Fairlearn MetricFrame + mf.difference() por grupo sensível
 │   ├── training/
 │   │   └── train.py             # Pipeline de treino com MLflow (5 etapas compostas)
 │   └── utils/
@@ -480,6 +482,7 @@ uv run pytest tests/ -v
 | + | CI: lint + 43 testes automáticos em todo PR (GitHub Actions) | ✅ Concluída |
 | + | CD: build e push automático para GHCR no merge para main | ✅ Concluída |
 | + | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID | ✅ Concluída |
+| + | Fairness: MetricFrame + mf.difference() por gender, senior_citizen e contract | ✅ Concluída |
 | + | Docker Compose: API + Prometheus + Grafana | ✅ Concluída |
 | + | Docstrings completas: modelos, treino e utilitários (Aula 3 — Bibliotecas Internas) | ✅ Concluída |
 | + | Refatoração SOLID: SRP, OCP, DIP, ISP — 6 módulos extraídos, app.py 478→130 linhas | ✅ Concluída |

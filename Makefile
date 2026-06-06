@@ -1,4 +1,4 @@
-.PHONY: install lint test train run clean
+.PHONY: install lint test train run fairness clean
 
 # Força UTF-8 no Python: o MLflow imprime URLs de run com emoji (🏃) que quebram em terminais Windows com codificação legada(cp1252).
 
@@ -24,6 +24,9 @@ run:
 
 mlflow-ui:
 	uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --host 0.0.0.0 --port 5001
+
+fairness:
+	uv run python -m src.monitoring.fairness
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
