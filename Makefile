@@ -8,10 +8,10 @@ install:
 	uv sync --extra dev
 
 lint:
-	uv run ruff check src/ tests/
+	uv run ruff check  .
 
 lint-fix:
-	uv run ruff check --fix src/ tests/
+	uv run ruff check --fix .
 
 test:
 	uv run pytest tests/ -v --cov=src --cov-report=term-missing
