@@ -267,16 +267,29 @@ resource "aws_ecs_task_definition" "prometheus" {
       name      = "prometheus"
       image     = "prom/prometheus:latest"
       essential = true
+      # No ECS/Fargate nao ha bind mount do prometheus.yml local.
+      # Geramos a configuracao em runtime para raspar a API publica via API Gateway.
+      entryPoint = ["/bin/sh", "-c"]
       command = [
-        "--config.file=/etc/prometheus/prometheus.yml",
-        "--storage.tsdb.path=/prometheus",
-        "--storage.tsdb.retention.time=15d",
-        "--web.enable-lifecycle",
-        # external-url define a URL publica do Prometheus por tras do API Gateway/ALB.
-        # Sem isso, o Prometheus 3.x redireciona a raiz para /query sem o prefixo,
-        # resultando em 404. Com external-url, redirects/assets usam /prometheus/.
-        "--web.external-url=${module.api_gateway.api_endpoint}/prometheus",
-        "--web.route-prefix=/prometheus"
+        <<-EOT
+          cat >/tmp/prometheus.yml <<'EOF'
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: "churn-api"
+              scheme: https
+              metrics_path: /metrics
+              static_configs:
+                - targets: ["${replace(module.api_gateway.api_endpoint, "https://", "")}"]
+          EOF
+          exec /bin/prometheus \
+            --config.file=/tmp/prometheus.yml \
+            --storage.tsdb.path=/prometheus \
+            --storage.tsdb.retention.time=15d \
+            --web.enable-lifecycle \
+            --web.external-url=${module.api_gateway.api_endpoint}/prometheus \
+            --web.route-prefix=/prometheus
+        EOT
       ]
       portMappings = [
         {
