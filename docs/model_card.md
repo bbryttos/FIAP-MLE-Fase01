@@ -5,12 +5,12 @@
 | Campo | Valor |
 |-------|-------|
 | **Nome** | ChurnMLP |
-| **Versão** | 1.0.0 |
+| **Versão** | 1.1.0 |
 | **Tipo** | Multi-Layer Perceptron (PyTorch) |
-| **Arquitetura** | Linear(input→64) → BN → ReLU → Dropout(0.3) → Linear(64→32) → BN → ReLU → Dropout(0.3) → Linear(32→16) → BN → ReLU → Dropout(0.3) → Linear(16→1) |
+| **Arquitetura** | Linear(59→128) → BN → ReLU → Dropout(0.3) → Linear(128→64) → BN → ReLU → Dropout(0.3) → Linear(64→32) → BN → ReLU → Dropout(0.3) → Linear(32→1) |
 | **Loss** | BCEWithLogitsLoss com pos_weight (balanceamento de classe) |
 | **Otimizador** | Adam (lr=1e-3, weight_decay=1e-4) + ReduceLROnPlateau |
-| **Treinamento** | Early stopping (patience=15, baseado em val_loss) |
+| **Treinamento** | Early stopping (patience=10, baseado em val_loss) |
 | **Seed** | 42 (reprodutibilidade total) |
 | **Desenvolvido por** | FIAP 10MLET — Tech Challenge Fase 1 |
 
@@ -220,7 +220,7 @@ Input (59)
 
 | Artefato | Caminho | Descricao |
 | --- | --- | --- |
-| Pesos do MLP | `models/mlp_weights.pt` | Checkpoint PyTorch com best val loss |
+| Pesos do MLP | `models/mlp_model.pt` | Checkpoint PyTorch com best val loss |
 | Preprocessador | `models/preprocessor.joblib` | Pipeline sklearn (FeatureEngineer + Scaler + OHE) |
 | Melhor baseline | `models/best_baseline.joblib` | Logistic Regression (F1=0.6141 no test set) |
 | Configuracao | `models/model_config.json` | `{"input_dim": 59}` |
