@@ -72,6 +72,12 @@ variable "container_image" {
   default     = ""
 }
 
+variable "grafana_image" {
+  type        = string
+  description = "Imagem Docker custom do Grafana (com provisioning embutido). Se vazio, usa o repo ECR dedicado do Grafana com a tag latest."
+  default     = ""
+}
+
 variable "jwt_expire_minutes" {
   type        = number
   description = "TTL do token JWT em minutos."

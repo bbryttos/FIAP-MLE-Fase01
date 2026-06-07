@@ -17,6 +17,10 @@ task_memory    = 512
 # Recomendado: usar a URL de output ecr_repository_url + tag da imagem.
 container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/churn-prediction-dev-api:latest"
 
+# Opcional: imagem custom do Grafana (provisioning embutido).
+# Se vazio, usa o repo ECR dedicado do Grafana (output ecr_grafana_repository_url) com a tag :latest.
+grafana_image = ""
+
 jwt_expire_minutes  = 60
 models_dir          = "models"
 log_level           = "INFO"

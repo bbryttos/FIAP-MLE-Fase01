@@ -1,6 +1,6 @@
-# Repositório ECR da API (tag mutável para facilitar ciclo de deploy).
+# Repositório ECR (tag mutável para facilitar ciclo de deploy).
 resource "aws_ecr_repository" "api" {
-  name                 = "${var.name_prefix}-api"
+  name                 = "${var.name_prefix}-${var.repo_suffix}"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
