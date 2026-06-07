@@ -71,3 +71,15 @@ variable "secret_arns_for_execution" {
   description = "Lista de ARNs de secrets permitidos para o execution role."
   default     = []
 }
+
+variable "existing_task_execution_role_arn" {
+  type        = string
+  description = "ARN de execution role existente para reutilizar. Se vazio, o Terraform cria uma nova."
+  default     = ""
+}
+
+variable "existing_task_role_arn" {
+  type        = string
+  description = "ARN de task role existente para reutilizar. Se vazio, o Terraform cria uma nova."
+  default     = ""
+}

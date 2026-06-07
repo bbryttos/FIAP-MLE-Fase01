@@ -146,3 +146,28 @@ variable "observability_log_retention_in_days" {
   default     = 7
 }
 
+# ARNs de roles opcionais para ambientes com IAM restrito (sem iam:CreateRole).
+variable "ecs_task_execution_role_arn" {
+  type        = string
+  description = "ARN de execution role existente para a API ECS. Se vazio, o Terraform cria uma nova."
+  default     = ""
+}
+
+variable "ecs_task_role_arn" {
+  type        = string
+  description = "ARN de task role existente para a API ECS. Se vazio, o Terraform cria uma nova."
+  default     = ""
+}
+
+variable "observability_task_execution_role_arn" {
+  type        = string
+  description = "ARN de execution role existente para MLflow/Prometheus/Grafana. Se vazio, o Terraform cria uma nova."
+  default     = ""
+}
+
+variable "observability_task_role_arn" {
+  type        = string
+  description = "ARN de task role existente para MLflow/Prometheus/Grafana. Se vazio, o Terraform cria uma nova."
+  default     = ""
+}
+

@@ -1,7 +1,9 @@
 # Convenções locais do serviço principal da API.
 locals {
-  app_name                 = "${var.name_prefix}-api"
-  secrets_policy_resources = length(var.secret_arns_for_execution) > 0 ? var.secret_arns_for_execution : ["*"]
+  app_name                   = "${var.name_prefix}-api"
+  secrets_policy_resources   = length(var.secret_arns_for_execution) > 0 ? var.secret_arns_for_execution : ["*"]
+  create_task_execution_role = var.existing_task_execution_role_arn == ""
+  create_task_role           = var.existing_task_role_arn == ""
 }
 
 # Log group central da API no CloudWatch.
@@ -29,13 +31,17 @@ data "aws_iam_policy_document" "ecs_task_assume_role" {
 
 # Role de execução da task (pull de imagem, envio de logs, etc.).
 resource "aws_iam_role" "task_execution" {
+  count = local.create_task_execution_role ? 1 : 0
+
   name               = "${var.name_prefix}-ecs-exec-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
 }
 
 # Permissão gerenciada padrão necessária para execução de task ECS/Fargate.
 resource "aws_iam_role_policy_attachment" "task_execution_managed" {
-  role       = aws_iam_role.task_execution.name
+  count = local.create_task_execution_role ? 1 : 0
+
+  role       = aws_iam_role.task_execution[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
@@ -50,15 +56,17 @@ data "aws_iam_policy_document" "task_execution_secrets" {
 
 # Anexa a policy opcional de secrets quando houver ARNs configurados.
 resource "aws_iam_role_policy" "task_execution_secrets" {
-  count = length(var.secret_arns_for_execution) > 0 ? 1 : 0
+  count = length(var.secret_arns_for_execution) > 0 && local.create_task_execution_role ? 1 : 0
 
   name   = "${var.name_prefix}-ecs-exec-secrets"
-  role   = aws_iam_role.task_execution.id
+  role   = aws_iam_role.task_execution[0].id
   policy = data.aws_iam_policy_document.task_execution_secrets.json
 }
 
 # Task role da aplicação (permissões de negócio, quando necessário).
 resource "aws_iam_role" "task" {
+  count = local.create_task_role ? 1 : 0
+
   name               = "${var.name_prefix}-ecs-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
 }
@@ -70,8 +78,8 @@ resource "aws_ecs_task_definition" "this" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = tostring(var.task_cpu)
   memory                   = tostring(var.task_memory)
-  execution_role_arn       = aws_iam_role.task_execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  execution_role_arn       = local.create_task_execution_role ? aws_iam_role.task_execution[0].arn : var.existing_task_execution_role_arn
+  task_role_arn            = local.create_task_role ? aws_iam_role.task[0].arn : var.existing_task_role_arn
 
   container_definitions = jsonencode([
     {
@@ -107,6 +115,10 @@ resource "aws_ecs_task_definition" "this" {
       }
     }
   ])
+
+  depends_on = [
+    aws_iam_role_policy_attachment.task_execution_managed
+  ]
 }
 
 # Serviço ECS/Fargate principal da API.

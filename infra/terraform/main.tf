@@ -68,15 +68,17 @@ module "ecs_service" {
   name_prefix = local.name_prefix
   aws_region  = var.aws_region
 
-  subnet_ids                  = module.network.public_subnet_ids
-  ecs_security_group_id       = module.network.ecs_security_group_id
-  target_group_arn            = module.alb.target_group_arn
-  container_port              = var.container_port
-  desired_count               = var.desired_count
-  task_cpu                    = var.task_cpu
-  task_memory                 = var.task_memory
-  container_image             = var.container_image != "" ? var.container_image : "${module.ecr.repository_url}:latest"
-  log_group_retention_in_days = var.api_log_retention_in_days
+  subnet_ids                       = module.network.public_subnet_ids
+  ecs_security_group_id            = module.network.ecs_security_group_id
+  target_group_arn                 = module.alb.target_group_arn
+  container_port                   = var.container_port
+  desired_count                    = var.desired_count
+  task_cpu                         = var.task_cpu
+  task_memory                      = var.task_memory
+  container_image                  = var.container_image != "" ? var.container_image : "${module.ecr.repository_url}:latest"
+  log_group_retention_in_days      = var.api_log_retention_in_days
+  existing_task_execution_role_arn = var.ecs_task_execution_role_arn
+  existing_task_role_arn           = var.ecs_task_role_arn
 
   environment_variables = local.app_environment
 

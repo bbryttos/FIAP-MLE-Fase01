@@ -51,4 +51,4 @@ O guia completo de provisionamento, deploy e validacao esta em:
 
 - `docs/aws_terraform_deploy.md`
 
-O procedimento de apagar toda a infra e recriar tambem esta documentado nesse guia.
+O procedimento de apagar toda a infra e recriar também esta documentado nesse guia.

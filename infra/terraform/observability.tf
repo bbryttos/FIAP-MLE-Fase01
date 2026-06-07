@@ -1,6 +1,9 @@
-# Reutiliza o mesmo cluster ECS da API para os serviços de observabilidade.
-data "aws_ecs_cluster" "main" {
-  cluster_name = module.ecs_service.cluster_name
+# Reutiliza o mesmo cluster ECS criado no módulo principal da API.
+# Nao usamos data source aqui para evitar erro em conta nova durante o primeiro plan/apply.
+
+locals {
+  create_observability_execution_role = var.observability_task_execution_role_arn == ""
+  create_observability_task_role      = var.observability_task_role_arn == ""
 }
 
 # Policy base para permitir que tasks ECS assumam as roles de execução e task role.
@@ -17,16 +20,22 @@ data "aws_iam_policy_document" "obs_task_assume_role" {
 
 # Roles reutilizadas pelos serviços de observabilidade (execução e runtime).
 resource "aws_iam_role" "obs_task_execution" {
+  count = local.create_observability_execution_role ? 1 : 0
+
   name               = "${local.name_prefix}-ecs-obs-exec-role"
   assume_role_policy = data.aws_iam_policy_document.obs_task_assume_role.json
 }
 
 resource "aws_iam_role_policy_attachment" "obs_task_execution_managed" {
-  role       = aws_iam_role.obs_task_execution.name
+  count = local.create_observability_execution_role ? 1 : 0
+
+  role       = aws_iam_role.obs_task_execution[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 resource "aws_iam_role" "obs_task" {
+  count = local.create_observability_task_role ? 1 : 0
+
   name               = "${local.name_prefix}-ecs-obs-task-role"
   assume_role_policy = data.aws_iam_policy_document.obs_task_assume_role.json
 }
@@ -194,8 +203,8 @@ resource "aws_ecs_task_definition" "mlflow" {
   cpu                      = tostring(max(var.observability_task_cpu, 512))
   # MLflow usa multiplos workers por padrao e precisa de mais folga de memoria.
   memory             = tostring(max(var.observability_task_memory, 2048))
-  execution_role_arn = aws_iam_role.obs_task_execution.arn
-  task_role_arn      = aws_iam_role.obs_task.arn
+  execution_role_arn = local.create_observability_execution_role ? aws_iam_role.obs_task_execution[0].arn : var.observability_task_execution_role_arn
+  task_role_arn      = local.create_observability_task_role ? aws_iam_role.obs_task[0].arn : var.observability_task_role_arn
 
   container_definitions = jsonencode([
     {
@@ -250,8 +259,8 @@ resource "aws_ecs_task_definition" "prometheus" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = tostring(var.observability_task_cpu)
   memory                   = tostring(var.observability_task_memory)
-  execution_role_arn       = aws_iam_role.obs_task_execution.arn
-  task_role_arn            = aws_iam_role.obs_task.arn
+  execution_role_arn       = local.create_observability_execution_role ? aws_iam_role.obs_task_execution[0].arn : var.observability_task_execution_role_arn
+  task_role_arn            = local.create_observability_task_role ? aws_iam_role.obs_task[0].arn : var.observability_task_role_arn
 
   container_definitions = jsonencode([
     {
@@ -294,8 +303,8 @@ resource "aws_ecs_task_definition" "grafana" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = tostring(var.observability_task_cpu)
   memory                   = tostring(var.observability_task_memory)
-  execution_role_arn       = aws_iam_role.obs_task_execution.arn
-  task_role_arn            = aws_iam_role.obs_task.arn
+  execution_role_arn       = local.create_observability_execution_role ? aws_iam_role.obs_task_execution[0].arn : var.observability_task_execution_role_arn
+  task_role_arn            = local.create_observability_task_role ? aws_iam_role.obs_task[0].arn : var.observability_task_role_arn
 
   container_definitions = jsonencode([
     {
@@ -331,7 +340,7 @@ resource "aws_ecs_task_definition" "grafana" {
 # Serviços ECS de observabilidade (escala controlada por observability_desired_count).
 resource "aws_ecs_service" "mlflow" {
   name                              = "${local.name_prefix}-mlflow-service"
-  cluster                           = data.aws_ecs_cluster.main.arn
+  cluster                           = module.ecs_service.cluster_name
   task_definition                   = aws_ecs_task_definition.mlflow.arn
   desired_count                     = var.observability_desired_count
   launch_type                       = "FARGATE"
@@ -357,7 +366,7 @@ resource "aws_ecs_service" "mlflow" {
 
 resource "aws_ecs_service" "prometheus" {
   name                              = "${local.name_prefix}-prometheus-service"
-  cluster                           = data.aws_ecs_cluster.main.arn
+  cluster                           = module.ecs_service.cluster_name
   task_definition                   = aws_ecs_task_definition.prometheus.arn
   desired_count                     = var.observability_desired_count
   launch_type                       = "FARGATE"
@@ -383,7 +392,7 @@ resource "aws_ecs_service" "prometheus" {
 
 resource "aws_ecs_service" "grafana" {
   name                              = "${local.name_prefix}-grafana-service"
-  cluster                           = data.aws_ecs_cluster.main.arn
+  cluster                           = module.ecs_service.cluster_name
   task_definition                   = aws_ecs_task_definition.grafana.arn
   desired_count                     = var.observability_desired_count
   launch_type                       = "FARGATE"
