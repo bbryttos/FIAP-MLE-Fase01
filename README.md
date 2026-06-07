@@ -71,9 +71,11 @@ FIAP-MLE-Fase01/
 │   └── processed/               # features processadas (não versionado)
 ├── models/                      # artefatos treinados (não versionados)
 ├── docs/
+│   ├── technical_overview.md    # Documentação técnica end-to-end + roteiro STAR
 │   ├── model_card.md            # Model Card: performance, limitações e vieses
 │   ├── monitoring_plan.md       # Plano de monitoramento
-│   └── refactoring_report.md    # Relatório de refatoração SOLID
+│   ├── refactoring_report.md    # Relatório de refatoração SOLID
+│   └── aws_terraform_deploy.md  # Guia de deploy AWS com Terraform
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml               # CI: lint + testes em todo PR
@@ -84,6 +86,21 @@ FIAP-MLE-Fase01/
 ├── .env.example                 # template de variáveis de ambiente
 └── README.md
 ```
+
+---
+
+## 📚 Documentação
+
+A documentação completa do projeto está organizada em `docs/` e no módulo de infraestrutura. Comece pela visão técnica e navegue conforme a necessidade:
+
+| Documento | Conteúdo | Quando consultar |
+|---|---|---|
+| [`docs/technical_overview.md`](docs/technical_overview.md) | Visão técnica end-to-end (dados → features → modelos → API) + roteiro STAR para o vídeo | Para entender o funcionamento interno de cada módulo |
+| [`docs/model_card.md`](docs/model_card.md) | Model Card: arquitetura, métricas, vieses, limitações e cenários de falha | Para avaliar performance, fairness e uso pretendido do modelo |
+| [`docs/monitoring_plan.md`](docs/monitoring_plan.md) | Plano de monitoramento: drift, fairness, alertas e playbook de incidentes | Para operar o modelo em produção |
+| [`docs/refactoring_report.md`](docs/refactoring_report.md) | Relatório de refatoração SOLID + Design Patterns + proposta de microsserviços | Para entender as decisões de arquitetura de software |
+| [`docs/aws_terraform_deploy.md`](docs/aws_terraform_deploy.md) | Guia completo de deploy na AWS com Terraform (credenciais, ECR, ECS, troubleshooting) | Para provisionar e publicar a infraestrutura |
+| [`infra/terraform/README.md`](infra/terraform/README.md) | Visão geral da IaC (estrutura dos módulos e credenciais) | Para navegar o código Terraform |
 
 ---
 
@@ -117,8 +134,8 @@ cd FIAP-MLE-Fase01
 # Cria o ambiente com a versão exata do Python (lê .python-version automaticamente)
 uv venv --python 3.12.2
 
-# Instala todas as dependências
-uv sync --extra dev
+# Instala todas as dependências (runtime + treino/EDA + dev)
+uv sync --extra dev --extra train
 
 # Configura as variáveis de ambiente
 cp .env.example .env
@@ -143,7 +160,7 @@ make train
 # Certifique-se de usar Python 3.12.2
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
-pip install -e ".[dev]"
+pip install -e ".[dev,train]"
 ```
 
 ### Valida a instalação
@@ -184,7 +201,7 @@ data/raw/Telco_customer_churn.csv
 ## 🏗️ Arquitetura
 
 ```
-WA_Fn-UseC_-Telco-Customer-Churn.csv
+data/raw/Telco_customer_churn.csv
          │
     load_data() + clean_data()     # renomeia colunas, imputa, normaliza
          │
@@ -424,6 +441,7 @@ Foi adicionada uma base de IaC em `infra/terraform` para provisionar o stack min
 
 - VPC + subnets publicas + security groups
 - ECR + ECS Fargate + ALB + API Gateway HTTP
+- MLflow + Prometheus + Grafana em ECS (acesso via API Gateway)
 - CloudWatch Logs
 
 Para manter o `README` enxuto, o passo a passo completo (credenciais sem hardcode, `terraform init/plan/apply`, push para ECR e validacao) ficou em:
@@ -438,12 +456,12 @@ Para manter o `README` enxuto, o passo a passo completo (credenciais sem hardcod
 | Modelo | AUC-ROC | F1 | Recall |
 |---|---|---|---|
 | DummyClassifier | 0.52 | 0.29 | 0.29 |
-| LogisticRegression | 0.85 | 0.62 | 0.80 |
-| RandomForest | 0.82 | 0.54 | 0.48 |
-| GradientBoosting | 0.84 | 0.59 | 0.52 |
-| **MLP (PyTorch)** | **0.84** | **0.62** | **0.79** |
+| RandomForest | 0.83 | 0.58 | 0.53 |
+| GradientBoosting | 0.86 | 0.59 | 0.53 |
+| LogisticRegression | 0.85 | 0.61 | 0.57 |
+| **MLP (PyTorch)** | **0.86** | **0.62** | **0.59** |
 
-*Execute `make train` para resultados exatos no seu ambiente.*
+*Valores do conjunto de teste (ver `docs/model_card.md`). Execute `make train` para reproduzir no seu ambiente.*
 
 ---
 

@@ -69,7 +69,7 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 │                                ↓                                │
 │           MLflow tracking (params + metrics + artifacts)        │
 │                                ↓                                │
-│    models/preprocessor.joblib + models/mlp_weights.pt          │
+│    models/preprocessor.joblib + models/mlp_model.pt            │
 └─────────────────────────────────────────────────────────────────┘
                                  │
                           artefatos salvos
@@ -103,9 +103,9 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 5. build_full_pipeline() → Pipeline sklearn:
    5a. FeatureEngineerTransformer  → +14 features derivadas
    5b. ColumnTransformer           → StandardScaler + OneHotEncoder
-6. pipeline.fit_transform(X_train) → array numpy (n × 46 features)
+6. pipeline.fit_transform(X_train) → array numpy (n × 59 features)
 7. Treino dos modelos   → baselines sklearn + MLP PyTorch
-8. Salvar artefatos     → preprocessor.joblib + mlp_weights.pt
+8. Salvar artefatos     → preprocessor.joblib + mlp_model.pt
 ```
 
 ### Durante a inferência (API)
@@ -115,7 +115,7 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 2. Pydantic validation  → ClienteInput valida tipos e constraints
 3. model_dump()         → dict → pd.DataFrame (1 × 19)
 4. preprocessor.transform() → aplica FE + scaling + encoding
-5. torch.FloatTensor    → tensor (1 × 46)
+5. torch.FloatTensor    → tensor (1 × 59)
 6. model.forward()      → logit escalar
 7. torch.sigmoid()      → probabilidade [0, 1]
 8. threshold 0.5        → prediction (0 ou 1)
@@ -267,9 +267,9 @@ cross_validate(pipeline, X_train, y_train, cv=cv, scoring=SCORING)
 #### Classe `MLP` — arquitetura da rede
 
 ```
-Input (46 features)
+Input (59 features)
     ↓
-Linear(46 → 128) → BatchNorm1d(128) → ReLU() → Dropout(0.3)
+Linear(59 → 128) → BatchNorm1d(128) → ReLU() → Dropout(0.3)
     ↓
 Linear(128 → 64) → BatchNorm1d(64)  → ReLU() → Dropout(0.3)
     ↓
@@ -359,7 +359,7 @@ def predict(X, threshold=0.5):
 7. [MLflow run "churn_experiment"]
    7a. Para cada baseline: train_baseline() → nested MLflow run
    7b. train_mlp() → nested MLflow run
-8. Salva mlp_weights.pt e results.json
+8. Salva mlp_model.pt e results.json
 ```
 
 **Por que `fit_transform` só no treino e `transform` no val/test?**
@@ -381,7 +381,7 @@ async def lifespan(app):
     preprocessor = joblib.load("models/preprocessor.joblib")
     input_dim = preprocessor.transform(dummy_row).shape[1]  # descobre dim automaticamente
     model = MLP(input_dim=input_dim, hidden_dims=[128, 64, 32])
-    model.load_state_dict(torch.load("models/mlp_weights.pt"))
+    model.load_state_dict(torch.load("models/mlp_model.pt"))
     model.eval()
     state["model_loaded"] = True
 
@@ -521,11 +521,13 @@ Intercepta **todas** as requisições antes de chegarem ao handler. Mede o tempo
 
 | Arquivo | Testes | O que valida |
 |---|---|---|
-| `test_preprocessing.py` | 6 testes | clean_data, imputação, binarização do target, output do pipeline, split estratificado |
-| `test_model.py` | 5 testes | shape de saída do MLP, forward pass, fit do trainer, predict_proba em [0,1], early stopping |
-| `test_api.py` | 8 testes | /health retorna 200+ok, /predict schema, probabilidade em [0,1], prediction em {0,1}, risk_level válido, 422 para campo ausente, 422 para SeniorCitizen inválido |
+| `test_preprocessing.py` | 7 testes | clean_data, imputação, binarização do target, output do pipeline, split estratificado |
+| `test_model.py` | 6 testes | shape de saída do MLP, forward pass, fit do trainer, predict_proba em [0,1], early stopping |
+| `test_api.py` | 18 testes | /health retorna 200+ok, /predict schema, JWT + API Key, batch, probabilidade em [0,1], prediction em {0,1}, risk_level válido, 422 para campo ausente/inválido |
+| `test_schema.py` | 6 testes | validação Pandera do dataset raw |
+| `test_smoke.py` | 6 testes | smoke tests do pipeline e do MLP |
 
-**Total: 20 testes, 0 falhas.**
+**Total: 43 testes, 0 falhas.**
 
 ### Linting com Ruff
 
@@ -568,8 +570,8 @@ churn_experiment (parent run)
 
 Acessar o MLflow UI:
 ```bash
-uv run mlflow ui --host 0.0.0.0 --port 5000
-# http://localhost:5000
+uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --host 0.0.0.0 --port 5001
+# http://localhost:5001  (porta 5000 é reservada pelo AirPlay no macOS)
 ```
 
 ---
@@ -584,7 +586,7 @@ uv run mlflow ui --host 0.0.0.0 --port 5000
 | **Pipeline reprodutível** | `build_full_pipeline()` salvo em joblib garante mesma transformação no treino e na API |
 | **Logging estruturado** | `logging.getLogger(__name__)` em todos os módulos; JSON no middleware da API |
 | **Schema validation** | Pandera valida o dataset antes do treino; Pydantic valida entradas da API |
-| **Testes automatizados** | 20 testes cobrindo dados, modelo e API |
+| **Testes automatizados** | 43 testes cobrindo dados, schema, modelo e API |
 | **Linting zero erros** | `ruff check` sem warnings |
 | **Single source of truth** | `pyproject.toml` define dependências, ruff e pytest |
 
@@ -630,11 +632,11 @@ uv run mlflow ui --host 0.0.0.0 --port 5000
 
 ### R — Result (3:45 – 5:00)
 
-*"O sistema entrega probabilidade de churn de 0 a 1, classificação binária e nível de risco (low/medium/high) em menos de 10ms por requisição. Com 20 testes automatizados e linting zero erros, o código está pronto para CI/CD. O MLflow permite comparar todos os experimentos e rastrear qual modelo foi para produção."*
+*"O sistema entrega probabilidade de churn de 0 a 1, classificação binária e nível de risco (low/medium/high) em menos de 10ms por requisição. Com 43 testes automatizados e linting zero erros, o código está pronto para CI/CD. O MLflow permite comparar todos os experimentos e rastrear qual modelo foi para produção."*
 
 - Mostrar: chamada curl ao /predict com resposta JSON
 - Mostrar: MLflow UI com comparação de modelos
-- Mostrar: `pytest` com 20 passed
+- Mostrar: `pytest` com 43 passed
 
 ---
 
