@@ -30,6 +30,13 @@ observability_task_cpu              = 512
 observability_task_memory           = 2048
 observability_log_retention_in_days = 7
 
+# Opcional: reutilizar roles IAM existentes (ambientes com IAM restrito).
+# Se vazio, o Terraform tentara criar as roles.
+ecs_task_execution_role_arn         = ""
+ecs_task_role_arn                   = ""
+observability_task_execution_role_arn = ""
+observability_task_role_arn           = ""
+
 tags = {
   Owner      = "time-mlops"
   CostCenter = "fiap-tech-challenge"

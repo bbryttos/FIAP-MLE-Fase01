@@ -77,6 +77,8 @@ monitoring/prometheus/data/
 **/.terraform/
 *.tfstate
 *.tfstate.*
+*.tfplan
+tfplan
 crash.log
 *.tfvars
 *.tfvars.json
