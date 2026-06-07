@@ -37,6 +37,14 @@ module "ecr" {
   name_prefix = local.name_prefix
 }
 
+# Repositório ECR dedicado à imagem custom do Grafana (provisioning embutido).
+module "ecr_grafana" {
+  source = "./modules/ecr"
+
+  name_prefix = local.name_prefix
+  repo_suffix = "grafana"
+}
+
 # Exposição HTTP pública com balanceamento para os serviços ECS.
 module "alb" {
   source = "./modules/alb"

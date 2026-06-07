@@ -130,12 +130,25 @@ docker buildx build \
   -t "${ECR_REPO}:latest" \
   --push .
 
+# 4b) Build/push da imagem custom do Grafana (provisioning embutido: datasource + dashboard)
+# Usa o repositorio ECR dedicado do Grafana (output ecr_grafana_repository_url).
+GRAFANA_ECR_REPO=$(cd infra/terraform && terraform output -raw ecr_grafana_repository_url)
+echo "GRAFANA_ECR_REPO=${GRAFANA_ECR_REPO}"
+docker buildx build \
+  --platform linux/amd64 \
+  --provenance=false --sbom=false \
+  -f monitoring/grafana/Dockerfile \
+  -t "${GRAFANA_ECR_REPO}:latest" \
+  --push monitoring/grafana
+
 # 5) Ativar tasks da API e reaplicar infra
 cd infra/terraform
 # ajuste desired_count = 1 no terraform.tfvars
 terraform plan -out tfplan
 terraform apply tfplan
 ```
+
+> O Grafana no ECS usa uma imagem custom (repo ECR dedicado, tag `:latest`) porque o Fargate nao monta volumes locais — o provisioning (`monitoring/grafana/provisioning`) precisa estar embutido na imagem. A datasource do Prometheus e resolvida pela variavel `PROMETHEUS_URL`, injetada pelo Terraform como `${api_gateway}/prometheus`. Para usar uma imagem propria, defina `grafana_image` no `terraform.tfvars`.
 
 #### Fluxo B - IAM restrito (sem iam:CreateRole)
 

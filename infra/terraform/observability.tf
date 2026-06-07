@@ -308,15 +308,21 @@ resource "aws_ecs_task_definition" "grafana" {
 
   container_definitions = jsonencode([
     {
-      name      = "grafana"
-      image     = "grafana/grafana:latest"
+      name = "grafana"
+      # Imagem custom com datasource + dashboards provisionados (ver monitoring/grafana/Dockerfile).
+      # No ECS nao ha volume para montar o provisioning, entao ele precisa estar embutido na imagem.
+      image     = var.grafana_image != "" ? var.grafana_image : "${module.ecr_grafana.repository_url}:latest"
       essential = true
       environment = [
         { name = "GF_SECURITY_ADMIN_USER", value = "admin" },
         { name = "GF_SECURITY_ADMIN_PASSWORD", value = "admin123" },
         { name = "GF_USERS_ALLOW_SIGN_UP", value = "false" },
-        { name = "GF_SERVER_ROOT_URL", value = "%(protocol)s://%(domain)s/grafana/" },
-        { name = "GF_SERVER_SERVE_FROM_SUB_PATH", value = "true" }
+        # Em API Gateway + ALB o host recebido pelo container pode virar localhost.
+        # Isso quebra o login com "origin not allowed" por mismatch de origem.
+        { name = "GF_SERVER_ROOT_URL", value = "${module.api_gateway.api_endpoint}/grafana/" },
+        { name = "GF_SERVER_SERVE_FROM_SUB_PATH", value = "true" },
+        # URL que o Grafana usa para consultar o Prometheus (datasource provisionada).
+        { name = "PROMETHEUS_URL", value = "${module.api_gateway.api_endpoint}/prometheus" }
       ]
       portMappings = [
         {

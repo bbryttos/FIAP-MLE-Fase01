@@ -46,6 +46,11 @@ output "ecr_repository_url" {
   value       = module.ecr.repository_url
 }
 
+output "ecr_grafana_repository_url" {
+  description = "URL do repositorio ECR da imagem custom do Grafana."
+  value       = module.ecr_grafana.repository_url
+}
+
 output "ecs_cluster_name" {
   description = "Nome do cluster ECS."
   value       = module.ecs_service.cluster_name
