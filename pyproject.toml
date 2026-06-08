@@ -51,6 +51,10 @@ dev = [
     "ruff>=0.3",
     "ipykernel>=6.29",
     "jupyter>=1.0",
+    # Fairness: usada por src/monitoring/fairness.py e tests/test_fairness.py.
+    # Fica fora do runtime (analise offline via `make fairness`), mas e necessaria
+    # no CI, que instala apenas o extra dev (uv sync --extra dev --frozen).
+    "fairlearn>=0.10",
 ]
 
 [tool.setuptools.packages.find]
@@ -67,7 +71,15 @@ ignore = ["E501", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
-"notebooks/*" = ["E402", "F401"]
+# Notebooks de EDA/baselines: tolerar padroes comuns de exploracao
+#   E402 - imports apos codigo (celulas)
+#   F401 - imports nao usados (libs carregadas para conveniencia)
+#   B905 - zip() sem strict= (comum em loops de plot)
+#   B007 - variavel de loop nao usada (ex.: `for i, _ in enumerate(...)`)
+#   B018 - expressao "inutil" (df.head() exibido como saida da celula)
+#   E741 - nomes ambiguos (l, I, O) usados em exemplos
+#   SIM - simplificacoes nao essenciais em codigo exploratorio
+"notebooks/*" = ["E402", "F401", "B905", "B007", "B018", "E741", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
