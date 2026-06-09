@@ -1,5 +1,4 @@
 aws_region   = "sa-east-1"
-aws_profile  = "seu-perfil-aws-cli"
 environment  = "dev"
 project_name = "churn-prediction"
 

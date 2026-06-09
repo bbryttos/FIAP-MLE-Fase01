@@ -5,12 +5,6 @@ variable "aws_region" {
   default     = "sa-east-1"
 }
 
-variable "aws_profile" {
-  type        = string
-  description = "Perfil AWS CLI. Deixe vazio para usar variaveis de ambiente AWS_*."
-  default     = ""
-}
-
 variable "project_name" {
   type        = string
   description = "Nome base do projeto para prefixar recursos."
