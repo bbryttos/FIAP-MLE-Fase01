@@ -332,7 +332,9 @@ async def predict_batch(
         raise HTTPException(status_code=422, detail="Batch size must be between 1 and 1000")
 
     try:
+        start = time.perf_counter()
         predictions = service.predict_batch(clientes)
+        PREDICTION_LATENCY.observe(time.perf_counter() - start)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Preprocessing error: {exc}") from exc
 

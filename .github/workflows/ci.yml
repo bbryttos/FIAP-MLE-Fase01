@@ -23,7 +23,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --extra dev --frozen
+        # dev = testes/lint; train = libs de treino/validação (pandera, mlflow...)
+        # exigidas por tests/test_schema.py e pelo pipeline de treino. A imagem
+        # Docker continua enxuta: o Dockerfile instala apenas as deps de runtime.
+        run: uv sync --extra dev --extra train --frozen
 
       - name: Lint with ruff
         run: uv run ruff check src/ tests/
