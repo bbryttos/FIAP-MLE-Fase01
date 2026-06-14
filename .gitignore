@@ -71,3 +71,15 @@ CLAUDE.md
 # Monitoring data
 monitoring/grafana/data/
 monitoring/prometheus/data/
+
+# Terraform
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example

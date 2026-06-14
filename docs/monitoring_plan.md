@@ -102,14 +102,14 @@ Armazenar em sistema centralizado (ex.: CloudWatch, Datadog, ELK Stack).
 
 1. Verificar distribuição das features (data drift nos últimos 30 dias).
 2. Coletar novos dados de treino dos últimos 60–90 dias.
-3. Re-treinar via `python train.py`; comparar métricas no holdout.
+3. Re-treinar via `make train` (ou `python -m src.training.train`); comparar métricas no holdout.
 4. Registrar novo experimento no MLflow antes de promover.
 5. Deploy gradual (canary): 10% → 50% → 100% do tráfego.
 
 ### Alta taxa de erros 5xx
 
 1. Verificar logs da API por stack traces.
-2. Confirmar se artefatos estão acessíveis (`models/mlp_model.pt`, `models/preprocessing_pipeline.joblib`).
+2. Confirmar se artefatos estão acessíveis (`models/mlp_model.pt`, `models/preprocessor.joblib`).
 3. Rollback para versão anterior via MLflow Model Registry se necessário.
 
 ### Data drift detectado
@@ -136,6 +136,6 @@ Armazenar em sistema centralizado (ex.: CloudWatch, Datadog, ELK Stack).
 | Artefato | Caminho | Verificação |
 |---|---|---|
 | MLP checkpoint | `models/mlp_model.pt` | Tamanho > 0, carrega sem erros |
-| Pipeline sklearn | `models/preprocessing_pipeline.joblib` | Transforma sample sem NaN |
+| Pipeline sklearn | `models/preprocessor.joblib` | Transforma sample sem NaN |
 | Configuração | `models/model_config.json` | `input_dim` presente e > 0 |
 | Logs | `logs/churn_prediction.log` | Rotação automática a cada 10MB |

@@ -10,11 +10,11 @@ Versão: 1.0.0 | Referência para o vídeo STAR (5 min)
 1. [Visão Geral do Problema](#1-visão-geral-do-problema)
 2. [Arquitetura do Sistema](#2-arquitetura-do-sistema)
 3. [Fluxo de Dados — do CSV à Predição](#3-fluxo-de-dados--do-csv-à-predição)
-4. [Módulo de Dados — `src/data/`](#4-módulo-de-dados--srcdata)
-5. [Feature Engineering — `src/features/`](#5-feature-engineering--srcfeatures)
-6. [Modelos — `src/models/`](#6-modelos--srcmodels)
-7. [Pipeline de Treinamento — `src/training/`](#7-pipeline-de-treinamento--srctraining)
-8. [API de Inferência — `src/api/`](#8-api-de-inferência--srcapi)
+4. [Módulo de Dados — `src/data/](#4-módulo-de-dados--srcdata)`
+5. [Feature Engineering — `src/features/](#5-feature-engineering--srcfeatures)`
+6. [Modelos — `src/models/](#6-modelos--srcmodels)`
+7. [Pipeline de Treinamento — `src/training/](#7-pipeline-de-treinamento--srctraining)`
+8. [API de Inferência — `src/api/](#8-api-de-inferência--srcapi)`
 9. [Testes e Qualidade de Código](#9-testes-e-qualidade-de-código)
 10. [Rastreamento de Experimentos com MLflow](#10-rastreamento-de-experimentos-com-mlflow)
 11. [Reprodutibilidade e Boas Práticas](#11-reprodutibilidade-e-boas-práticas)
@@ -42,12 +42,14 @@ O desafio: **identificar com antecedência quais clientes têm maior probabilida
 
 Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 
-| Métrica | Por que importa |
-|---|---|
-| **AUC-ROC** | Mede o poder de ranking do modelo — quão bem ele separa churners de não-churners independente do threshold |
-| **F1-Score** | Balanceia precision e recall — importante quando o custo de errar é assimétrico |
-| **Recall** | Minimiza falsos negativos (cliente que vai sair mas não foi identificado = perda certa) |
-| **Precision** | Controla falsos positivos (oferecer desconto a quem não ia sair = custo desnecessário) |
+
+| Métrica       | Por que importa                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| **AUC-ROC**   | Mede o poder de ranking do modelo — quão bem ele separa churners de não-churners independente do threshold |
+| **F1-Score**  | Balanceia precision e recall — importante quando o custo de errar é assimétrico                            |
+| **Recall**    | Minimiza falsos negativos (cliente que vai sair mas não foi identificado = perda certa)                    |
+| **Precision** | Controla falsos positivos (oferecer desconto a quem não ia sair = custo desnecessário)                     |
+
 
 ---
 
@@ -69,7 +71,7 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 │                                ↓                                │
 │           MLflow tracking (params + metrics + artifacts)        │
 │                                ↓                                │
-│    models/preprocessor.joblib + models/mlp_weights.pt          │
+│    models/preprocessor.joblib + models/mlp_model.pt            │
 └─────────────────────────────────────────────────────────────────┘
                                  │
                           artefatos salvos
@@ -103,9 +105,9 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 5. build_full_pipeline() → Pipeline sklearn:
    5a. FeatureEngineerTransformer  → +14 features derivadas
    5b. ColumnTransformer           → StandardScaler + OneHotEncoder
-6. pipeline.fit_transform(X_train) → array numpy (n × 46 features)
+6. pipeline.fit_transform(X_train) → array numpy (n × 59 features)
 7. Treino dos modelos   → baselines sklearn + MLP PyTorch
-8. Salvar artefatos     → preprocessor.joblib + mlp_weights.pt
+8. Salvar artefatos     → preprocessor.joblib + mlp_model.pt
 ```
 
 ### Durante a inferência (API)
@@ -115,7 +117,7 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 2. Pydantic validation  → ClienteInput valida tipos e constraints
 3. model_dump()         → dict → pd.DataFrame (1 × 19)
 4. preprocessor.transform() → aplica FE + scaling + encoding
-5. torch.FloatTensor    → tensor (1 × 46)
+5. torch.FloatTensor    → tensor (1 × 59)
 6. model.forward()      → logit escalar
 7. torch.sigmoid()      → probabilidade [0, 1]
 8. threshold 0.5        → prediction (0 ou 1)
@@ -129,33 +131,37 @@ Com 73%/27% de split, accuracy é enganosa. As métricas escolhidas são:
 
 ### `preprocessing.py`
 
-**`load_data(path)`**
+`**load_data(path)**`
+
 - Carrega o CSV com `pd.read_csv()`
 - Loga o shape do dataset (`INFO: Loaded 7043 rows, 21 columns`)
 
-**`clean_data(df)`**
+`**clean_data(df)**`
 
 Etapas em ordem:
+
 1. Remove `customerID` — identificador sem valor preditivo
 2. Converte `TotalCharges` de string para float (`pd.to_numeric(..., errors="coerce")`)
-   - Clientes com `tenure=0` têm `TotalCharges=" "` (espaço em branco) → vira `NaN`
+  - Clientes com `tenure=0` têm `TotalCharges=" "` (espaço em branco) → vira `NaN`
 3. Imputa nulos numéricos pela **mediana** (robusto a outliers)
 4. Imputa nulos categóricos pela **moda** (valor mais frequente)
 5. Binariza o target: `"Yes"` → `1`, `"No"` → `0`
 
-**`build_preprocessor()`**
+`**build_preprocessor()`**
 
 Constrói um `ColumnTransformer` com 3 transformadores paralelos:
 
-| Nome | Transformador | Colunas |
-|---|---|---|
+
+| Nome  | Transformador    | Colunas                                             |
+| ----- | ---------------- | --------------------------------------------------- |
 | `num` | `StandardScaler` | tenure, MonthlyCharges, TotalCharges + 2 engineered |
-| `bin` | `passthrough` | SeniorCitizen + 12 colunas binárias engineered |
-| `cat` | `OneHotEncoder` | 15 colunas categóricas originais |
+| `bin` | `passthrough`    | SeniorCitizen + 12 colunas binárias engineered      |
+| `cat` | `OneHotEncoder`  | 15 colunas categóricas originais                    |
+
 
 O `remainder="drop"` descarta qualquer coluna não listada explicitamente.
 
-**`build_full_pipeline()`**
+`**build_full_pipeline()`**
 
 ```python
 Pipeline([
@@ -166,7 +172,7 @@ Pipeline([
 
 Por que Pipeline e não chamar cada função separado? Porque o sklearn Pipeline garante que `fit` ocorre apenas nos dados de treino e `transform` aplica a mesma transformação em val/test/produção — **sem data leakage**.
 
-**`split_data(df)`**
+`**split_data(df)`**
 
 ```
 df (7043) → test_size=0.2 → X_test (1408) + restante (5635)
@@ -195,7 +201,7 @@ RAW_SCHEMA = DataFrameSchema(
 )
 ```
 
-**`validate_raw(df)`** é chamado no início do `train.py`. Se o dataset violar alguma regra (ex: valor de `Contract` fora das categorias esperadas), o erro é reportado com detalhes antes de qualquer processamento — **fail fast e explícito**.
+`**validate_raw(df)**` é chamado no início do `train.py`. Se o dataset violar alguma regra (ex: valor de `Contract` fora das categorias esperadas), o erro é reportado com detalhes antes de qualquer processamento — **fail fast e explícito**.
 
 ---
 
@@ -207,16 +213,18 @@ O dataset bruto tem informações implícitas que o modelo linear (regressão lo
 
 ### `add_features(df)` — 14 novas features
 
-| Feature | Fórmula / Lógica | Intuição de negócio |
-|---|---|---|
-| `charges_per_tenure` | `MonthlyCharges / (tenure + ε)` | Custo médio por mês de relacionamento — clientes novos pagando muito têm alto risco |
-| `is_new_customer` | `tenure ≤ 3` | Primeiros 3 meses: período crítico de churn inicial |
-| `is_long_term` | `tenure > 24` | Clientes antigos têm lealdade maior — risco baixo |
-| `is_monthly_contract` | `Contract == "Month-to-month"` | Contratos mensais têm ~43% de churn vs ~3% dos anuais |
-| `is_electronic_check` | `PaymentMethod == "Electronic check"` | Forma de pagamento correlacionada com churn |
-| `has_phoneservice` | `PhoneService == "Yes"` | Binário explícito do serviço |
-| `has_*` (7 colunas) | `coluna == "Yes"` | Transforma categóricas ternárias em binárias simples |
-| `num_services` | soma de todos os `has_*` | Nível de engajamento — mais serviços = menor churn |
+
+| Feature               | Fórmula / Lógica                      | Intuição de negócio                                                                 |
+| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `charges_per_tenure`  | `MonthlyCharges / (tenure + ε)`       | Custo médio por mês de relacionamento — clientes novos pagando muito têm alto risco |
+| `is_new_customer`     | `tenure ≤ 3`                          | Primeiros 3 meses: período crítico de churn inicial                                 |
+| `is_long_term`        | `tenure > 24`                         | Clientes antigos têm lealdade maior — risco baixo                                   |
+| `is_monthly_contract` | `Contract == "Month-to-month"`        | Contratos mensais têm ~43% de churn vs ~3% dos anuais                               |
+| `is_electronic_check` | `PaymentMethod == "Electronic check"` | Forma de pagamento correlacionada com churn                                         |
+| `has_phoneservice`    | `PhoneService == "Yes"`               | Binário explícito do serviço                                                        |
+| `has_`* (7 colunas)   | `coluna == "Yes"`                     | Transforma categóricas ternárias em binárias simples                                |
+| `num_services`        | soma de todos os `has_`*              | Nível de engajamento — mais serviços = menor churn                                  |
+
 
 ### `FeatureEngineerTransformer`
 
@@ -242,12 +250,14 @@ Baselines estabelecem o piso de performance. Se o MLP não superar o `GradientBo
 
 Os 4 baselines treinados:
 
-| Modelo | Justificativa |
-|---|---|
+
+| Modelo                                   | Justificativa                                                                                                          |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `DummyClassifier(strategy="stratified")` | Baseline absoluto — prediz aleatoriamente respeitando a proporção das classes. Qualquer modelo sério deve superar isso |
-| `LogisticRegression` | Baseline linear clássico — interpretável, rápido, boa capacidade com features bem preparadas |
-| `RandomForest` | Ensemble de árvores — captura interações não-lineares sem hiperparâmetros complexos |
-| `GradientBoosting` | Ensemble sequencial — geralmente o mais forte dos baselines em dados tabulares |
+| `LogisticRegression`                     | Baseline linear clássico — interpretável, rápido, boa capacidade com features bem preparadas                           |
+| `RandomForest`                           | Ensemble de árvores — captura interações não-lineares sem hiperparâmetros complexos                                    |
+| `GradientBoosting`                       | Ensemble sequencial — geralmente o mais forte dos baselines em dados tabulares                                         |
+
 
 Todos os baselines usam `build_full_pipeline()` internamente, então feature engineering é aplicado automaticamente.
 
@@ -267,9 +277,9 @@ cross_validate(pipeline, X_train, y_train, cv=cv, scoring=SCORING)
 #### Classe `MLP` — arquitetura da rede
 
 ```
-Input (46 features)
+Input (59 features)
     ↓
-Linear(46 → 128) → BatchNorm1d(128) → ReLU() → Dropout(0.3)
+Linear(59 → 128) → BatchNorm1d(128) → ReLU() → Dropout(0.3)
     ↓
 Linear(128 → 64) → BatchNorm1d(64)  → ReLU() → Dropout(0.3)
     ↓
@@ -289,6 +299,7 @@ Linear(32 → 1)   [logit escalar — sem ativação]
 #### Classe `MLPTrainer` — loop de treinamento
 
 **Inicialização:**
+
 ```python
 torch.manual_seed(42)   # reprodutibilidade dos pesos iniciais
 np.random.seed(42)      # reprodutibilidade do DataLoader
@@ -359,7 +370,7 @@ def predict(X, threshold=0.5):
 7. [MLflow run "churn_experiment"]
    7a. Para cada baseline: train_baseline() → nested MLflow run
    7b. train_mlp() → nested MLflow run
-8. Salva mlp_weights.pt e results.json
+8. Salva mlp_model.pt e results.json
 ```
 
 **Por que `fit_transform` só no treino e `transform` no val/test?**
@@ -381,7 +392,7 @@ async def lifespan(app):
     preprocessor = joblib.load("models/preprocessor.joblib")
     input_dim = preprocessor.transform(dummy_row).shape[1]  # descobre dim automaticamente
     model = MLP(input_dim=input_dim, hidden_dims=[128, 64, 32])
-    model.load_state_dict(torch.load("models/mlp_weights.pt"))
+    model.load_state_dict(torch.load("models/mlp_model.pt"))
     model.eval()
     state["model_loaded"] = True
 
@@ -436,6 +447,7 @@ def health():
 **Uso:** healthcheck para load balancers e orquestradores (Kubernetes, ECS). Se `model_loaded=false`, o pod não deve receber tráfego.
 
 Resposta:
+
 ```json
 {"status": "ok", "model_loaded": true, "version": "1.0.0"}
 ```
@@ -477,13 +489,16 @@ Durante inferência, não precisamos calcular gradientes (não há backpropagati
 
 **Classificação de risco:**
 
-| `churn_probability` | `risk_level` | Ação recomendada |
-|---|---|---|
-| < 0.40 | `low` | Nenhuma ação necessária |
-| 0.40 – 0.69 | `medium` | Contato proativo de retenção |
-| ≥ 0.70 | `high` | Oferta imediata de desconto/upgrade |
+
+| `churn_probability` | `risk_level` | Ação recomendada                    |
+| ------------------- | ------------ | ----------------------------------- |
+| < 0.40              | `low`        | Nenhuma ação necessária             |
+| 0.40 – 0.69         | `medium`     | Contato proativo de retenção        |
+| ≥ 0.70              | `high`       | Oferta imediata de desconto/upgrade |
+
 
 Resposta:
+
 ```json
 {
   "churn_probability": 0.7823,
@@ -519,17 +534,22 @@ Intercepta **todas** as requisições antes de chegarem ao handler. Mede o tempo
 
 ### Cobertura de testes (`tests/`)
 
-| Arquivo | Testes | O que valida |
-|---|---|---|
-| `test_preprocessing.py` | 6 testes | clean_data, imputação, binarização do target, output do pipeline, split estratificado |
-| `test_model.py` | 5 testes | shape de saída do MLP, forward pass, fit do trainer, predict_proba em [0,1], early stopping |
-| `test_api.py` | 8 testes | /health retorna 200+ok, /predict schema, probabilidade em [0,1], prediction em {0,1}, risk_level válido, 422 para campo ausente, 422 para SeniorCitizen inválido |
 
-**Total: 20 testes, 0 falhas.**
+| Arquivo                 | Testes    | O que valida                                                                                                                                                   |
+| ----------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test_preprocessing.py` | 7 testes  | clean_data, imputação, binarização do target, output do pipeline, split estratificado                                                                          |
+| `test_model.py`         | 6 testes  | shape de saída do MLP, forward pass, fit do trainer, predict_proba em [0,1], early stopping                                                                    |
+| `test_api.py`           | 18 testes | /health retorna 200+ok, /predict schema, JWT + API Key, batch, probabilidade em [0,1], prediction em {0,1}, risk_level válido, 422 para campo ausente/inválido |
+| `test_schema.py`        | 6 testes  | validação Pandera do dataset raw                                                                                                                               |
+| `test_smoke.py`         | 6 testes  | smoke tests do pipeline e do MLP                                                                                                                               |
+
+
+**Total: 43 testes, 0 falhas.**
 
 ### Linting com Ruff
 
 Configurado no `pyproject.toml`:
+
 ```toml
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
@@ -567,26 +587,29 @@ churn_experiment (parent run)
 ```
 
 Acessar o MLflow UI:
+
 ```bash
-uv run mlflow ui --host 0.0.0.0 --port 5000
-# http://localhost:5000
+uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --host 0.0.0.0 --port 5001
+# http://localhost:5001  (porta 5000 é reservada pelo AirPlay no macOS)
 ```
 
 ---
 
 ## 11. Reprodutibilidade e Boas Práticas
 
-| Prática | Implementação |
-|---|---|
-| **Seed fixo** | `RANDOM_STATE = 42` em todos os módulos; `torch.manual_seed(42)` e `np.random.seed(42)` no `MLPTrainer` |
-| **Validação cruzada estratificada** | `StratifiedKFold(n_splits=5)` em todos os baselines |
-| **Sem data leakage** | `fit_transform` apenas em X_train; `transform` em val/test/produção |
-| **Pipeline reprodutível** | `build_full_pipeline()` salvo em joblib garante mesma transformação no treino e na API |
-| **Logging estruturado** | `logging.getLogger(__name__)` em todos os módulos; JSON no middleware da API |
-| **Schema validation** | Pandera valida o dataset antes do treino; Pydantic valida entradas da API |
-| **Testes automatizados** | 20 testes cobrindo dados, modelo e API |
-| **Linting zero erros** | `ruff check` sem warnings |
-| **Single source of truth** | `pyproject.toml` define dependências, ruff e pytest |
+
+| Prática                             | Implementação                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Seed fixo**                       | `RANDOM_STATE = 42` em todos os módulos; `torch.manual_seed(42)` e `np.random.seed(42)` no `MLPTrainer` |
+| **Validação cruzada estratificada** | `StratifiedKFold(n_splits=5)` em todos os baselines                                                     |
+| **Sem data leakage**                | `fit_transform` apenas em X_train; `transform` em val/test/produção                                     |
+| **Pipeline reprodutível**           | `build_full_pipeline()` salvo em joblib garante mesma transformação no treino e na API                  |
+| **Logging estruturado**             | `logging.getLogger(__name__)` em todos os módulos; JSON no middleware da API                            |
+| **Schema validation**               | Pandera valida o dataset antes do treino; Pydantic valida entradas da API                               |
+| **Testes automatizados**            | 43 testes cobrindo dados, schema, modelo e API                                                          |
+| **Linting zero erros**              | `ruff check` sem warnings                                                                               |
+| **Single source of truth**          | `pyproject.toml` define dependências, ruff e pytest                                                     |
+
 
 ---
 
@@ -630,12 +653,9 @@ uv run mlflow ui --host 0.0.0.0 --port 5000
 
 ### R — Result (3:45 – 5:00)
 
-*"O sistema entrega probabilidade de churn de 0 a 1, classificação binária e nível de risco (low/medium/high) em menos de 10ms por requisição. Com 20 testes automatizados e linting zero erros, o código está pronto para CI/CD. O MLflow permite comparar todos os experimentos e rastrear qual modelo foi para produção."*
+*"O sistema entrega probabilidade de churn de 0 a 1, classificação binária e nível de risco (low/medium/high) em menos de 10ms por requisição. Com 43 testes automatizados e linting zero erros, o código está pronto para CI/CD. O MLflow permite comparar todos os experimentos e rastrear qual modelo foi para produção."*
 
 - Mostrar: chamada curl ao /predict com resposta JSON
 - Mostrar: MLflow UI com comparação de modelos
-- Mostrar: `pytest` com 20 passed
+- Mostrar: `pytest` com 43 passed
 
----
-
-*Documentação gerada em 2026-05-16 — Tech Challenge Fase 1 FIAP MLE*

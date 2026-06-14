@@ -3,14 +3,14 @@
 > Modelo preditivo de churn para operadora de telecomunicações.
 > Pipeline end-to-end: EDA → Baselines → MLP (PyTorch) → API (FastAPI) → Deploy (Docker + CI/CD).
 
-![Python](https://img.shields.io/badge/Python-3.12-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-orange)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-green)
-![MLflow](https://img.shields.io/badge/MLflow-2.10%2B-blue)
-![Fairlearn](https://img.shields.io/badge/Fairlearn-0.10%2B-teal)
-![Ruff](https://img.shields.io/badge/linting-ruff-purple)
-![CI](https://img.shields.io/badge/CI-GitHub%20Actions-black)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+Python
+PyTorch
+FastAPI
+MLflow
+Fairlearn
+Ruff
+CI
+License
 
 ---
 
@@ -36,16 +36,16 @@ boas práticas de Machine Learning Engineering:
 FIAP-MLE-Fase01/
 ├── src/
 │   ├── api/
-│   │   ├── app.py               # FastAPI — controller: roteamento + middlewares (~130 linhas)
-│   │   ├── schemas.py           # Schemas Pydantic (entrada e saída)
-│   │   ├── security.py          # JWT, API Key, InMemoryUserRepository, rate limiting
-│   │   ├── metrics.py           # Objetos Prometheus (Counter, Histogram, Gauge)
+│   │   ├── app.py               # FastAPI — rotas, middlewares, /metrics e health checks
+│   │   ├── metrics.py           # Métricas Prometheus (Counter, Histogram, Gauge)
 │   │   ├── model_loader.py      # ModelRepository protocol + LocalModelRepository
 │   │   └── prediction_service.py # PredictionService + RiskClassifier (Strategy)
+│   │   ├── schemas.py           # Schemas Pydantic (entrada e saída)
+│   │   ├── security.py          # JWT, API Key, repositório de usuários e rate limiting
 │   ├── data/
 │   │   ├── preprocessing.py     # load_data(), clean_data(), split_data(), pipelines
-│   │   ├── transformers.py      # OutlierClipper, TotalChargesImputer, BinaryEncoder
 │   │   └── schema.py            # Validação Pandera do dataset
+│   │   ├── transformers.py      # OutlierClipper, TotalChargesImputer, BinaryEncoder
 │   ├── features/
 │   │   └── engineering.py       # Feature engineering
 │   ├── models/
@@ -53,45 +53,102 @@ FIAP-MLE-Fase01/
 │   │   ├── evaluation.py        # evaluate_model(), compute_metrics()
 │   │   └── mlp.py               # ChurnMLP (PyTorch) + EarlyStopping + MLPTrainer
 │   ├── monitoring/
+│   │   ├── __init__.py
 │   │   ├── drift_detection.py   # KS test + PSI para monitoramento pós-deploy
 │   │   └── fairness.py          # Fairlearn MetricFrame + mf.difference() por grupo sensível
 │   ├── training/
 │   │   └── train.py             # Pipeline de treino com MLflow (5 etapas compostas)
 │   └── utils/
+│       ├── __init__.py
 │       ├── config.py            # Configuração centralizada (pydantic-settings)
 │       └── logger.py            # Logging estruturado (loguru)
 ├── tests/
 │   ├── test_api.py              # Testes da API FastAPI (com JWT)
+│   ├── test_fairness.py         # Testes de fairness (Fairlearn MetricFrame)
 │   ├── test_model.py            # Testes do MLP PyTorch
 │   ├── test_preprocessing.py    # Testes de pré-processamento
-│   ├── test_schema.py           # Validação do schema do dataset (pandera)
+│   ├── test_schema.py           # Validação do schema do dataset (Pandera)
 │   └── test_smoke.py            # Smoke tests: pipeline e MLP
 ├── notebooks/
-│   └── 01_eda_baselines.ipynb   # EDA + baselines
+│   ├── 01_eda_baselines.ipynb   # EDA + baselines
+│   ├── eda.ipynb                # EDA exploratório (dataset Telco)
+│   └── modeling.ipynb           # Experimentos de modelagem
 ├── data/
 │   ├── raw/                     # dataset original (não versionado)
-│   └── processed/               # features processadas (não versionado)
-├── models/                      # artefatos treinados (não versionados)
+├── models/                      # artefatos treinados (parcialmente versionados)
+│   ├── best_baseline.joblib     # melhor baseline (RandomForest/GBT)
+│   └── mlp_model.pt             # checkpoint PyTorch (gerado por make train; não versionado)
+│   ├── model_config.json        # input_dim e metadados do MLP
+│   ├── preprocessor.joblib      # pipeline sklearn de pré-processamento
+├── monitoring/                  # stack de observabilidade local (docker-compose)
+│   ├── prometheus.yml           # scrape da API (/metrics)
+│   └── grafana/
+│       ├── Dockerfile           # imagem custom para ECS (provisioning embutido)
+│       └── provisioning/
+│           ├── datasources/prometheus.yml
+│           └── dashboards/
+│               ├── dashboard.yml
+│               └── churn-api-overview.json
+├── infra/
+│   └── terraform/               # IaC AWS (ECS Fargate, ECR, ALB, API Gateway)
+│       ├── main.tf              # VPC, ECS API, ECR, ALB, API Gateway
+│       ├── observability.tf     # MLflow, Prometheus e Grafana em ECS
+│       ├── outputs.tf           # URLs (API, MLflow, Prometheus, Grafana, ECR)
+│       ├── provider.tf          # provider AWS + tags padrão
+│       ├── variables.tf         # variáveis de ambiente e sizing
+│       ├── versions.tf
+│       ├── terraform.tfvars.example
+│       ├── README.md
+│       ├── environments/dev/terraform.tfvars.example
+│       └── modules/
+│           ├── network/           # VPC, subnets, security groups
+│           ├── ecr/               # repositórios de imagem (API + Grafana)
+│           ├── ecs_service/       # cluster e service da API
+│           ├── alb/               # Application Load Balancer
+│           └── api_gateway/       # HTTP API Gateway
 ├── docs/
+│   ├── aws_terraform_deploy.md  # Guia de deploy AWS com Terraform
+│   ├── deploy_architecture.md   # Arquitetura de deploy
+│   └── ml_canvas.md             # ML Canvas do projeto
 │   ├── model_card.md            # Model Card: performance, limitações e vieses
 │   ├── monitoring_plan.md       # Plano de monitoramento
-│   └── refactoring_report.md    # Relatório de refatoração SOLID
+│   ├── refactoring_report.md    # Relatório de refatoração SOLID
+│   ├── technical_overview.md    # Documentação técnica end-to-end + roteiro STAR
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml               # CI: lint + testes em todo PR
 │       └── cd.yml               # CD: build e push Docker para GHCR
 ├── pyproject.toml               # dependências + config de ferramentas (single source of truth)
-├── Makefile                     # atalhos de comandos
+├── Makefile                     # atalhos (install, lint, test, train, fairness, run)
 ├── Dockerfile                   # imagem multi-stage para produção
+├── docker-compose.yml           # stack local: API + MLflow + Prometheus + Grafana
 ├── .env.example                 # template de variáveis de ambiente
 └── README.md
 ```
 
 ---
 
+## 📚 Documentação
+
+A documentação completa do projeto está organizada em `docs/` e no módulo de infraestrutura. Comece pela visão técnica e navegue conforme a necessidade:
+
+
+| Documento                                                      | Conteúdo                                                                                | Quando consultar                                              |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `[docs/technical_overview.md](docs/technical_overview.md)`     | Visão técnica end-to-end (dados → features → modelos → API) + roteiro STAR para o vídeo | Para entender o funcionamento interno de cada módulo          |
+| `[docs/model_card.md](docs/model_card.md)`                     | Model Card: arquitetura, métricas, vieses, limitações e cenários de falha               | Para avaliar performance, fairness e uso pretendido do modelo |
+| `[docs/monitoring_plan.md](docs/monitoring_plan.md)`           | Plano de monitoramento: drift, fairness, alertas e playbook de incidentes               | Para operar o modelo em produção                              |
+| `[docs/refactoring_report.md](docs/refactoring_report.md)`     | Relatório de refatoração SOLID + Design Patterns + proposta de microsserviços           | Para entender as decisões de arquitetura de software          |
+| `[docs/aws_terraform_deploy.md](docs/aws_terraform_deploy.md)` | Guia completo de deploy na AWS com Terraform (credenciais, ECR, ECS, troubleshooting)   | Para provisionar e publicar a infraestrutura                  |
+| `[infra/terraform/README.md](infra/terraform/README.md)`       | Visão geral da IaC (estrutura dos módulos e credenciais)                                | Para navegar o código Terraform                               |
+
+
+---
+
 ## 🚀 Setup Rápido
 
 ### Pré-requisitos
+
 - Python **3.12.2** (versão exata definida em `.python-version`; 3.13+ não suportado pelo torch 2.2.x)
 - [uv](https://docs.astral.sh/uv/) — gerenciador de pacotes
 - Git
@@ -119,8 +176,8 @@ cd FIAP-MLE-Fase01
 # Cria o ambiente com a versão exata do Python (lê .python-version automaticamente)
 uv venv --python 3.12.2
 
-# Instala todas as dependências
-uv sync --extra dev
+# Instala todas as dependências (runtime + treino/EDA + dev)
+uv sync --extra dev --extra train
 
 # Configura as variáveis de ambiente
 cp .env.example .env
@@ -145,7 +202,7 @@ make train
 # Certifique-se de usar Python 3.12.2
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
-pip install -e ".[dev]"
+pip install -e ".[dev,train]"
 ```
 
 ### Valida a instalação
@@ -167,15 +224,17 @@ data/raw/Telco_customer_churn.csv
 
 ## ⚙️ Comandos
 
-| Comando | Descrição |
-|---|---|
-| `make install` | Instala todas as dependências |
-| `make mlflow-ui` | Abre o MLflow UI em `http://localhost:5001`* |
-| `make train` | Treina baselines + MLP, loga no MLflow, salva artefatos (requer MLflow ativo) |
-| `make run` | Sobe a API FastAPI em `http://localhost:8000` |
-| `make test` | Roda todos os testes com pytest |
-| `make lint` | Verifica estilo com ruff |
-| `make clean` | Remove caches e artefatos temporários |
+
+| Comando          | Descrição                                                                     |
+| ---------------- | ----------------------------------------------------------------------------- |
+| `make install`   | Instala todas as dependências                                                 |
+| `make mlflow-ui` | Abre o MLflow UI em `http://localhost:5001`*                                  |
+| `make train`     | Treina baselines + MLP, loga no MLflow, salva artefatos (requer MLflow ativo) |
+| `make run`       | Sobe a API FastAPI em `http://localhost:8000`                                 |
+| `make test`      | Roda todos os testes com pytest                                               |
+| `make lint`      | Verifica estilo com ruff                                                      |
+| `make clean`     | Remove caches e artefatos temporários                                         |
+
 
 > *A porta 5000 é reservada pelo AirPlay Receiver no macOS Monterey+.
 > Para usar a porta 5000: **System Settings → AirDrop & Handoff → AirPlay Receiver → desligar**.
@@ -186,7 +245,7 @@ data/raw/Telco_customer_churn.csv
 ## 🏗️ Arquitetura
 
 ```
-WA_Fn-UseC_-Telco-Customer-Churn.csv
+data/raw/Telco_customer_churn.csv
          │
     load_data() + clean_data()     # renomeia colunas, imputa, normaliza
          │
@@ -243,10 +302,12 @@ curl -X POST http://localhost:8000/predict \
 
 **Usuários disponíveis para teste:**
 
-| Usuário | Senha | Papel |
-|---|---|---|
+
+| Usuário | Senha      | Papel |
+| ------- | ---------- | ----- |
 | `admin` | `admin123` | admin |
-| `user` | `user123` | user |
+| `user`  | `user123`  | user  |
+
 
 > Em produção: banco de dados com senhas hasheadas e `JWT_SECRET_KEY` gerado com `openssl rand -hex 32`.
 
@@ -263,15 +324,17 @@ curl -X POST http://localhost:8000/predict-apikey \
 
 ## 🌐 Endpoints da API
 
-| Método | Endpoint | Auth | Descrição |
-|---|---|---|---|
-| GET | `/health` | Público | Status da API e modelo |
-| GET | `/ready` | Público | Readiness check (503 se modelo não carregado) |
-| POST | `/auth/login` | Público | Login e geração de token JWT |
-| GET | `/auth/me` | JWT | Dados do usuário autenticado |
-| POST | `/predict` | JWT | Predição para um cliente |
-| POST | `/predict-apikey` | API Key | Predição para um cliente (serviços) |
-| POST | `/predict-batch` | JWT | Predição em lote (até 1000 clientes) |
+
+| Método | Endpoint          | Auth    | Descrição                                     |
+| ------ | ----------------- | ------- | --------------------------------------------- |
+| GET    | `/health`         | Público | Status da API e modelo                        |
+| GET    | `/ready`          | Público | Readiness check (503 se modelo não carregado) |
+| POST   | `/auth/login`     | Público | Login e geração de token JWT                  |
+| GET    | `/auth/me`        | JWT     | Dados do usuário autenticado                  |
+| POST   | `/predict`        | JWT     | Predição para um cliente                      |
+| POST   | `/predict-apikey` | API Key | Predição para um cliente (serviços)           |
+| POST   | `/predict-batch`  | JWT     | Predição em lote (até 1000 clientes)          |
+
 
 ### Exemplo de requisição e resposta
 
@@ -352,18 +415,21 @@ A API expõe métricas no formato Prometheus e rastreamento por requisição:
 curl http://localhost:8000/metrics | grep churn_
 ```
 
-| Métrica | Tipo | Descrição |
-|---|---|---|
-| `churn_predictions_total` | Counter | Total de predições por auth_method e risk_level |
-| `churn_prediction_latency_seconds` | Histogram | Latência das predições |
-| `churn_request_latency_seconds` | Histogram | Latência total das requisições |
-| `churn_requests_total` | Counter | Total de requisições por método, endpoint e status |
-| `churn_model_loaded` | Gauge | Indica se o modelo está carregado (1=sim, 0=não) |
-| `churn_login_attempts_total` | Counter | Tentativas de login por status (success/failed) |
-| `churn_rate_limit_hits_total` | Counter | Requisições bloqueadas por rate limiting |
-| `churn_prediction_probability` | Histogram | Distribuição das probabilidades de churn preditas |
+
+| Métrica                            | Tipo      | Descrição                                          |
+| ---------------------------------- | --------- | -------------------------------------------------- |
+| `churn_predictions_total`          | Counter   | Total de predições por auth_method e risk_level    |
+| `churn_prediction_latency_seconds` | Histogram | Latência das predições                             |
+| `churn_request_latency_seconds`    | Histogram | Latência total das requisições                     |
+| `churn_requests_total`             | Counter   | Total de requisições por método, endpoint e status |
+| `churn_model_loaded`               | Gauge     | Indica se o modelo está carregado (1=sim, 0=não)   |
+| `churn_login_attempts_total`       | Counter   | Tentativas de login por status (success/failed)    |
+| `churn_rate_limit_hits_total`      | Counter   | Requisições bloqueadas por rate limiting           |
+| `churn_prediction_probability`     | Histogram | Distribuição das probabilidades de churn preditas  |
+
 
 Todas as respostas incluem os headers:
+
 - `X-Trace-ID` — identificador único por requisição para rastreamento end-to-end
 - `X-Latency-Ms` — latência da requisição em milissegundos
 
@@ -387,12 +453,14 @@ docker run -p 8000:8000 \
 docker-compose up -d
 ```
 
-| Serviço | URL | Descrição |
-| --- | --- | --- |
-| API | <http://localhost:8000/docs> | FastAPI + Swagger UI |
-| MLflow UI | <http://localhost:5001> | Experimentos, métricas e artefatos |
-| Prometheus | <http://localhost:9090> | Coleta de métricas |
-| Grafana | <http://localhost:3000> (admin/admin123) | Dashboards |
+
+| Serviço    | URL                                                             | Descrição                          |
+| ---------- | --------------------------------------------------------------- | ---------------------------------- |
+| API        | [http://localhost:8000/docs](http://localhost:8000/docs)        | FastAPI + Swagger UI               |
+| MLflow UI  | [http://localhost:5001](http://localhost:5001)                  | Experimentos, métricas e artefatos |
+| Prometheus | [http://localhost:9090](http://localhost:9090)                  | Coleta de métricas                 |
+| Grafana    | [http://localhost:3000](http://localhost:3000) (admin/admin123) | Dashboards                         |
+
 
 > **Nota:** A porta 5001 é usada para o MLflow para evitar conflito com o AirPlay Receiver do macOS (porta 5000).
 > Os arquivos de configuração (`monitoring/prometheus.yml`, `monitoring/grafana/`) são versionados.
@@ -402,10 +470,12 @@ docker-compose up -d
 
 O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
 
-| Execução | Tempo |
-|---|---|
-| Primeira (cache vazio) | ~19 minutos |
+
+| Execução                      | Tempo       |
+| ----------------------------- | ----------- |
+| Primeira (cache vazio)        | ~6 minutos  |
 | Subsequentes (cache populado) | ~2 segundos |
+
 
 > O cache é mantido localmente pelo Docker. No CI/CD o cache é gerenciado via GitHub Actions cache.
 
@@ -413,24 +483,44 @@ O Dockerfile usa cache do uv (`--mount=type=cache`) para otimizar builds:
 
 ## 🔄 CI/CD
 
-| Workflow | Trigger | O que faz |
-|---|---|---|
-| `ci.yml` | Todo push e PR | Lint (ruff) + 43 testes (pytest) |
-| `cd.yml` | Merge para `main` | Build Docker + push para GHCR |
+
+| Workflow | Trigger           | O que faz                        |
+| -------- | ----------------- | -------------------------------- |
+| `ci.yml` | Todo push e PR    | Lint (ruff) + 43 testes (pytest) |
+| `cd.yml` | Merge para `main` | Build Docker + push para GHCR    |
+
+
+---
+
+## ☁️ Deploy AWS com Terraform (sem hardcode de credenciais)
+
+Foi adicionada uma base de IaC em `infra/terraform` para provisionar o stack minimo da API:
+
+- VPC + subnets publicas + security groups
+- ECR + ECS Fargate + ALB + API Gateway HTTP
+- MLflow + Prometheus + Grafana em ECS (acesso via API Gateway)
+- CloudWatch Logs
+
+Para manter o `README` enxuto, o passo a passo completo (credenciais sem hardcode, `terraform init/plan/apply`, push para ECR e validacao) ficou em:
+
+- `docs/aws_terraform_deploy.md`
+- `infra/terraform/README.md`
 
 ---
 
 ## 📊 Métricas Principais
 
-| Modelo | AUC-ROC | F1 | Recall |
-|---|---|---|---|
-| DummyClassifier | 0.52 | 0.29 | 0.29 |
-| LogisticRegression | 0.85 | 0.62 | 0.80 |
-| RandomForest | 0.82 | 0.54 | 0.48 |
-| GradientBoosting | 0.84 | 0.59 | 0.52 |
-| **MLP (PyTorch)** | **0.84** | **0.62** | **0.79** |
 
-*Execute `make train` para resultados exatos no seu ambiente.*
+| Modelo             | AUC-ROC  | F1       | Recall   |
+| ------------------ | -------- | -------- | -------- |
+| DummyClassifier    | 0.52     | 0.29     | 0.29     |
+| RandomForest       | 0.83     | 0.58     | 0.53     |
+| GradientBoosting   | 0.86     | 0.59     | 0.53     |
+| LogisticRegression | 0.85     | 0.61     | 0.57     |
+| **MLP (PyTorch)**  | **0.86** | **0.62** | **0.59** |
+
+
+*Valores do conjunto de teste (ver `docs/model_card.md`). Execute `make train` para reproduzir no seu ambiente.*
 
 ---
 
@@ -446,49 +536,55 @@ uv run pytest tests/ -v
 
 ### Warnings conhecidos
 
-| Warning | Origem | Status |
-| --- | --- | --- |
-| `DeprecationWarning: 'crypt' is deprecated` | `passlib` (lib de terceiros) | Aguardando correção upstream |
-| `DeprecationWarning: datetime.utcnow()` | `src/api/security.py` | Corrigido — substituído por `datetime.now(timezone.utc)` |
+
+| Warning                                     | Origem                       | Status                                                   |
+| ------------------------------------------- | ---------------------------- | -------------------------------------------------------- |
+| `DeprecationWarning: 'crypt' is deprecated` | `passlib` (lib de terceiros) | Aguardando correção upstream                             |
+| `DeprecationWarning: datetime.utcnow()`     | `src/api/security.py`        | Corrigido — substituído por `datetime.now(timezone.utc)` |
+
 
 ---
 
 ## 👥 Equipe
 
-| Nome | RM | E-mail | Papel                              |
-|---|---|---|------------------------------------|
-| Anna Luiza de Angelis Souza Freitas | RM375350 | annaluizafreitas17@hotmail.com | Dados / Machine Learning Engineering |
-| Bruno Brito de Souza | RM374808 | brunobrito.learning@gmail.com | Dados / Machine Learning Engineering |
-| Fellipe Resende Bastos | RM373040 | fbastos95@gmail.com | Dados / Machine Learning Engineering |
-| German Eduardo Brunner | RM375046 | brunner.brunner@gmail.com | Dados / Machine Learning Engineering |
-| Marcelo da Cruz Salvador | RM375166 | macrusal@gmail.com | Software Engineering |
+
+| Nome                                | RM       | E-mail                                                                  | Papel                                |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------- | ------------------------------------ |
+| Anna Luiza de Angelis Souza Freitas | RM375350 | [annaluizafreitas17@hotmail.com](mailto:annaluizafreitas17@hotmail.com) | Dados / Machine Learning Engineering |
+| Bruno Brito de Souza                | RM374808 | [brunobrito.learning@gmail.com](mailto:brunobrito.learning@gmail.com)   | Dados / Machine Learning Engineering |
+| Fellipe Resende Bastos              | RM373040 | [fbastos95@gmail.com](mailto:fbastos95@gmail.com)                       | Dados / Machine Learning Engineering |
+| German Eduardo Brunner              | RM375046 | [brunner.brunner@gmail.com](mailto:brunner.brunner@gmail.com)           | Dados / Machine Learning Engineering |
+| Marcelo da Cruz Salvador            | RM375166 | [macrusal@gmail.com](mailto:macrusal@gmail.com)                         | Software Engineering                 |
+
 
 ---
 
 ## 📐 Etapas do Projeto
 
-| Etapa | Foco | Status |
-|---|---|---|
-| 1 | EDA + Baselines + MLflow | ✅ Concluída |
-| 2 | MLP PyTorch + comparação de modelos | ✅ Concluída |
-| 3 | Refatoração + FastAPI + testes + Makefile | ✅ Concluída |
-| + | Segurança API: JWT + API Key + Rate Limiting + CORS | ✅ Concluída |
-| + | 43 testes: smoke, schema, API (JWT), model, preprocessing | ✅ Concluída |
-| + | Logging estruturado (loguru) + config centralizado | ✅ Concluída |
-| + | Validação de dados com Pandera | ✅ Concluída |
-| 4 | Model Card + README + Docker multi-stage + CI/CD GitHub Actions | ✅ Concluída |
-| + | Docker: multi-stage build com uv + usuário não-root + healthcheck | ✅ Concluída |
-| + | Docker: cache de build (19min → 1.6s na segunda execução) | ✅ Concluída |
-| + | CI: lint + 43 testes automáticos em todo PR (GitHub Actions) | ✅ Concluída |
-| + | CD: build e push automático para GHCR no merge para main | ✅ Concluída |
-| + | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID | ✅ Concluída |
-| + | Fairness: MetricFrame + mf.difference() por gender, senior_citizen e contract | ✅ Concluída |
-| + | Docker Compose: API + Prometheus + Grafana | ✅ Concluída |
-| + | Docstrings completas: modelos, treino e utilitários (Aula 3 — Bibliotecas Internas) | ✅ Concluída |
-| + | Refatoração SOLID: SRP, OCP, DIP, ISP — 6 módulos extraídos, app.py 478→130 linhas | ✅ Concluída |
-| + | Design Patterns: Strategy (RiskClassifier), Repository (UserRepo + ModelRepo), Facade (PredictionService) | ✅ Concluída |
-| + | Cobertura de testes: 43/43 mantidos, 70% de cobertura medida | ✅ Concluída |
-| 5 | Deploy AWS ECS Fargate | 🔄 Em andamento |
+
+| Etapa | Foco                                                                                                      | Status      |
+| ----- | --------------------------------------------------------------------------------------------------------- | ----------- |
+| 1     | EDA + Baselines + MLflow                                                                                  | ✅ Concluída |
+| 2     | MLP PyTorch + comparação de modelos                                                                       | ✅ Concluída |
+| 3     | Refatoração + FastAPI + testes + Makefile                                                                 | ✅ Concluída |
+| +     | Segurança API: JWT + API Key + Rate Limiting + CORS                                                       | ✅ Concluída |
+| +     | 43 testes: smoke, schema, API (JWT), model, preprocessing                                                 | ✅ Concluída |
+| +     | Logging estruturado (loguru) + config centralizado                                                        | ✅ Concluída |
+| +     | Validação de dados com Pandera                                                                            | ✅ Concluída |
+| 4     | Model Card + README + Docker multi-stage + CI/CD GitHub Actions                                           | ✅ Concluída |
+| +     | Docker: multi-stage build com uv + usuário não-root + healthcheck                                         | ✅ Concluída |
+| +     | Docker: cache de build (6min → 2s na segunda execução)                                                    | ✅ Concluída |
+| +     | CI: lint + 43 testes automáticos em todo PR (GitHub Actions)                                              | ✅ Concluída |
+| +     | CD: build e push automático para GHCR no merge para main                                                  | ✅ Concluída |
+| +     | Observabilidade: Prometheus /metrics + trace_id + X-Trace-ID                                              | ✅ Concluída |
+| +     | Fairness: MetricFrame + mf.difference() por gender, senior_citizen e contract                             | ✅ Concluída |
+| +     | Docker Compose: API + Prometheus + Grafana                                                                | ✅ Concluída |
+| +     | Docstrings completas: modelos, treino e utilitários (Aula 3 — Bibliotecas Internas)                       | ✅ Concluída |
+| +     | Refatoração SOLID: SRP, OCP, DIP, ISP — 6 módulos extraídos, app.py 478→130 linhas                        | ✅ Concluída |
+| +     | Design Patterns: Strategy (RiskClassifier), Repository (UserRepo + ModelRepo), Facade (PredictionService) | ✅ Concluída |
+| +     | Cobertura de testes: 43/43 mantidos, 70% de cobertura medida                                              | ✅ Concluída |
+| 5     | Deploy AWS ECS Fargate                                                                                    | ✅ Concluída |
+
 
 ---
 
